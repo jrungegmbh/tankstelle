@@ -1670,26 +1670,40 @@ async function importAll() {
   refreshDashboard();
 }
 
+// Helper: find first matching field value from record
+function fld(r, ...keys) {
+  for (const k of keys) {
+    if (r[k] !== undefined && r[k] !== null && r[k] !== '') return r[k];
+  }
+  return null;
+}
+
 async function importOrt(records) {
+  if (!records.length) return;
+  const sample = records[0];
+  logImport(`[ORT] Felder: ${Object.keys(sample).join(', ')}`);
   const rows = records.map(r => ({
-    ortid: r.ORTID || r.ID,
-    ortname: r.ORTNAME || r.ORT || r.NAME || '',
-    plz: String(r.PLZ || ''),
-    strasse: r.STRASSE || ''
-  }));
+    ortid: fld(r,'ORTID','OID','ID','NR'),
+    ortname: fld(r,'ORTNAME','ORT','NAME','BEZEICHNUNG') || '',
+    plz: String(fld(r,'PLZ','POSTLEITZAHL') || ''),
+    strasse: fld(r,'STRASSE','STR') || ''
+  })).filter(r => r.ortid != null);
   await upsertBatch('ort', rows, 'ortid');
   logImport(`[ORT] ${rows.length} Orte importiert`);
 }
 
 async function importKunden(records) {
+  if (!records.length) return;
+  const sample = records[0];
+  logImport(`[KUNDEN] Felder: ${Object.keys(sample).join(', ')}`);
   const rows = records.map(r => ({
-    kundennr: r.KUNDENNR || r.KDNR || r.ID,
-    name: r.NAME || r.NACHNAME || '',
-    vorname: r.VORNAME || '',
-    strasse: r.STRASSE || '',
-    ortid: r.ORTID || null,
-    telefon: r.TELEFON || r.TEL || '',
-    email: r.EMAIL || ''
+    kundennr: fld(r,'KUNDENNR','KDNR','KUNR','KNR','ID','NR'),
+    name: fld(r,'NAME','NACHNAME','FIRMA','KUNNAME') || '',
+    vorname: fld(r,'VORNAME','VNAME') || '',
+    strasse: fld(r,'STRASSE','STR','ANSCHRIFT') || '',
+    ortid: fld(r,'ORTID','OID','ORTSNR'),
+    telefon: fld(r,'TELEFON','TEL','TELEFON1') || '',
+    email: fld(r,'EMAIL','MAIL','EMAI') || ''
   })).filter(r => r.kundennr != null);
   await upsertBatch('kunden', rows, 'kundennr');
   logImport(`[KUNDEN] ${rows.length} Kunden importiert`);
@@ -1697,61 +1711,81 @@ async function importKunden(records) {
 }
 
 async function importAusweise(records) {
+  if (!records.length) return;
+  const sample = records[0];
+  logImport(`[MARB] Felder: ${Object.keys(sample).join(', ')}`);
   // MAZAART: 1=SEPA, 2=Eigenverbrauch, 3=Rechnung
   const rows = records.map(r => ({
-    marbnr: r.MARBNR || r.AUSWEISNR || r.ID,
-    kundennr: r.KUNDENNR || r.KDNR || null,
-    bezeichnung: r.BEZEICHNUNG || r.NAME || '',
-    maident: r.MAIDENT || null,
-    mazaart: r.MAZAART || null,
-    aktiv: r.AKTIV !== false
+    marbnr: fld(r,'MARBNR','MARBID','AUSWEISNR','ID','NR'),
+    kundennr: fld(r,'KUNDENNR','KDNR','KUNR','KNR'),
+    bezeichnung: fld(r,'BEZEICHNUNG','BEZ','NAME','MARBNAME') || '',
+    maident: fld(r,'MAIDENT','MAID','IDENT'),
+    mazaart: fld(r,'MAZAART','ZAART','ZART','ART'),
+    aktiv: r.AKTIV !== false && r.GELOESCHT !== true
   })).filter(r => r.marbnr != null);
   await upsertBatch('ausweise', rows, 'marbnr');
   logImport(`[MARB/AUSWEISE] ${rows.length} Ausweise importiert`);
 }
 
 async function importTankungen(records) {
+  if (!records.length) return;
+  const sample = records[0];
+  logImport(`[HIA] Felder: ${Object.keys(sample).join(', ')}`);
+
   // Build ausweis lookup for zahltyp
-  const ausweis = state.dbfRaw.marb ? {} : null;
-  if (ausweis) {
+  const ausweis = {};
+  if (state.dbfRaw.marb) {
     for (const r of state.dbfRaw.marb.records) {
-      ausweis[r.MAIDENT] = r.MAZAART;
+      const mid = fld(r,'MAIDENT','MAID','IDENT');
+      const art = fld(r,'MAZAART','ZAART','ZART','ART');
+      if (mid != null) ausweis[mid] = art;
     }
   }
 
-  const ecIdents = (localStorage.getItem('cfg') ? JSON.parse(localStorage.getItem('cfg')).ec || '19,507,508' : '19,507,508')
-    .split(',').map(n => parseInt(n.trim()));
+  const ecIdents = '19,507,508'.split(',').map(n => parseInt(n.trim()));
 
   const rows = records.map(r => {
-    const maident = r.MAIDENT || r.KASSENID;
-    const menge = parseFloat(r.HIMENGE || r.MENGE || 0);
-    const lpreis = parseFloat(r.HILPREIS || r.LPREIS || 0);
-    const preis = parseFloat(r.HIPREIS || 0) || (menge * lpreis);
+    const maident = fld(r,'MAIDENT','MAID','IDENT','KASSENID');
+    const menge = parseFloat(fld(r,'HIMENGE','MENGE','LITER') || 0);
+    const lpreis = parseFloat(fld(r,'HILPREIS','LPREIS','PREIS1') || 0);
+    const preis = parseFloat(fld(r,'HIPREIS','PREIS','BETRAG') || 0) || parseFloat((menge * lpreis).toFixed(2));
 
-    // Determine zahltyp
-    let zahltyp = 'rechnung';
-    if (ecIdents.includes(maident)) {
-      zahltyp = 'ec';
-    } else if (ausweis) {
-      const art = ausweis[maident];
-      if (art == 1) zahltyp = 'sepa';
-      else if (art == 2) zahltyp = 'eigen';
-      else if (art == 3) zahltyp = 'rechnung';
+    // Zeit-Feld bereinigen: nur HH:MM:SS erlaubt
+    let zeit = fld(r,'HIZEIT','ZEIT','UHRZEIT');
+    if (zeit) {
+      // Remove non-time characters, keep only digits and colons
+      zeit = String(zeit).replace(/[^0-9:]/g, '');
+      // Must match HH:MM or HH:MM:SS
+      if (!/^\d{1,2}:\d{2}/.test(zeit)) zeit = null;
     }
 
+    let zahltyp = 'rechnung';
+    if (maident != null && ecIdents.includes(parseInt(maident))) {
+      zahltyp = 'ec';
+    } else if (ausweis[maident] != null) {
+      const art = parseInt(ausweis[maident]);
+      if (art === 1) zahltyp = 'sepa';
+      else if (art === 2) zahltyp = 'eigen';
+      else if (art === 3) zahltyp = 'rechnung';
+    }
+
+    const belegnr = fld(r,'HIBELEGNR','BELEGNR','BONNR','BELEGID');
+
     return {
-      hibelegnr: r.HIBELEGNR || r.BELEGNR || String(r.ID || Math.random()),
-      hidatum: r.HIDATUM || r.DATUM,
-      hizeit: r.HIZEIT || r.ZEIT || null,
+      hibelegnr: belegnr ? String(belegnr) : null,
+      hidatum: fld(r,'HIDATUM','DATUM','BUCHDAT'),
+      hizeit: zeit,
       maident: maident,
-      kundennr: r.KUNDENNR || r.KDNR || null,
+      kundennr: fld(r,'KUNDENNR','KDNR','KUNR','KNR'),
       himenge: menge,
       hilpreis: lpreis,
       hipreis: preis,
-      hiartbez: r.HIARTBEZ || r.ARTBEZ || '',
+      hiartbez: fld(r,'HIARTBEZ','ARTBEZ','PRODUKT','ART') || '',
       zahltyp
     };
   }).filter(r => r.hibelegnr && r.hidatum);
+
+  logImport(`[HIA] ${rows.length} gültige Sätze nach Bereinigung`);
 
   // Batch upsert in chunks of 500
   for (let i = 0; i < rows.length; i += 500) {
