@@ -1336,17 +1336,11 @@ function showPage(id, el) {
 // ============================================================
 // SUPABASE API
 // ============================================================
+const _SBKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJya3FkanN3b2ZxaHptcmd2c25kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMTI0NTIsImV4cCI6MjA5Mjc4ODQ1Mn0.K0ni9Q1wq1ZJrpUjwBolHiPYOEqTuZouAvjvRFQmTBI';
+const _SBURL = 'https://rrkqdjswofqhzmrgvsnd.supabase.co';
+
 function getAuthHeaders() {
-  const key = state.key;
-  // New publishable key format: sb_publishable_...
-  // Legacy anon key format: eyJ... (JWT)
-  if (key.startsWith('sb_publishable_') || key.startsWith('sb_secret_')) {
-    return {
-      'apikey': key,
-      'Authorization': 'Bearer ' + key
-    };
-  }
-  // Legacy JWT anon key
+  const key = _SBKEY;
   return {
     'apikey': key,
     'Authorization': 'Bearer ' + key
@@ -1354,15 +1348,25 @@ function getAuthHeaders() {
 }
 
 async function sbFetch(path, opts = {}) {
-  if (!state.key) throw new Error('Kein API-Key konfiguriert');
-  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+  const method = opts.method || 'GET';
+  const body = opts.body || undefined;
+  const prefer = (opts.headers && opts.headers['Prefer']) || opts.prefer || 'return=minimal';
+  const extraHeaders = {};
+  if (opts.headers) {
+    for (const [k,v] of Object.entries(opts.headers)) {
+      if (k !== 'Prefer') extraHeaders[k] = v;
+    }
+  }
+  const res = await fetch(_SBURL + '/rest/v1/' + path, {
+    method,
+    body,
     headers: {
-      ...getAuthHeaders(),
+      'apikey': _SBKEY,
+      'Authorization': 'Bearer ' + _SBKEY,
       'Content-Type': 'application/json',
-      'Prefer': opts.prefer || 'return=minimal',
-      ...opts.headers
-    },
-    ...opts
+      'Prefer': prefer,
+      ...extraHeaders
+    }
   });
   if (!res.ok) {
     const err = await res.text();
@@ -1374,7 +1378,10 @@ async function sbFetch(path, opts = {}) {
 
 async function testConnection() {
   try {
-    await sbFetch('kunden?limit=1', { headers: { 'Prefer': 'count=exact' } });
+    const _r = await fetch('https://rrkqdjswofqhzmrgvsnd.supabase.co/rest/v1/kunden?limit=1', {
+      headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJya3FkanN3b2ZxaHptcmd2c25kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMTI0NTIsImV4cCI6MjA5Mjc4ODQ1Mn0.K0ni9Q1wq1ZJrpUjwBolHiPYOEqTuZouAvjvRFQmTBI', 'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJya3FkanN3b2ZxaHptcmd2c25kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMTI0NTIsImV4cCI6MjA5Mjc4ODQ1Mn0.K0ni9Q1wq1ZJrpUjwBolHiPYOEqTuZouAvjvRFQmTBI', 'Prefer': 'count=exact' }
+    });
+    if (!_r.ok) throw new Error(await _r.text());
     state.connected = true;
     setDbStatus(true);
     toast('Supabase verbunden ✓', 'success');
@@ -1762,9 +1769,10 @@ async function upsertBatch(table, rows, onConflict) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
     headers: {
-      ...getAuthHeaders(),
+      'apikey': _SBKEY,
+      'Authorization': 'Bearer ' + _SBKEY,
       'Content-Type': 'application/json',
-      'Prefer': `resolution=merge-duplicates,return=minimal`,
+      'Prefer': 'resolution=merge-duplicates,return=minimal',
       'on-conflict': onConflict
     },
     body: JSON.stringify(rows)
@@ -2329,14 +2337,14 @@ async function refreshDashboard() {
   try {
     // Count tankungen
     const countRes = await fetch(`${SUPABASE_URL}/rest/v1/tankungen?select=id`, {
-      headers: { ...getAuthHeaders(), 'Prefer': 'count=exact', 'Range': '0-0' }
+      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Prefer': 'count=exact', 'Range': '0-0' }
     });
     const count = countRes.headers.get('content-range')?.split('/')[1] || '—';
     document.getElementById('stat-total').textContent = parseInt(count).toLocaleString('de') || count;
 
     // Count kunden
     const kRes = await fetch(`${SUPABASE_URL}/rest/v1/kunden?select=id`, {
-      headers: { ...getAuthHeaders(), 'Prefer': 'count=exact', 'Range': '0-0' }
+      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Prefer': 'count=exact', 'Range': '0-0' }
     });
     const kCount = kRes.headers.get('content-range')?.split('/')[1] || '—';
     document.getElementById('stat-kunden').textContent = parseInt(kCount).toLocaleString('de') || kCount;
