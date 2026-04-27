@@ -1930,6 +1930,8 @@ async function importSepaTab(records) {
   await upsertBatch('sepa_mandate', rows, 'mandatsreferenz');
   logImport(`[SEPA_TAB] ${rows.length} SEPA-Mandate importiert`);
 }
+
+async function importTankungen(records) {
   if (!records.length) return;
   logImport(`[HIA] ${records.length} Sätze werden verarbeitet...`);
 
