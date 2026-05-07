@@ -285,6 +285,11 @@
     white-space: nowrap;
   }
 
+  thead th.sortable { cursor: pointer; user-select: none; }
+  thead th.sortable:hover { color: var(--text); }
+  thead th.sort-asc::after  { content: ' ▲'; color: var(--accent); font-size: 9px; }
+  thead th.sort-desc::after { content: ' ▼'; color: var(--accent); font-size: 9px; }
+
   tbody tr {
     border-bottom: 1px solid var(--border);
     cursor: pointer;
@@ -773,7 +778,13 @@
             <path d="M2 13V6l4-4h4l4 4v7H2z"/>
             <path d="M6 13V9h4v4"/>
           </svg>
-          Eigenverbrauch
+          Eigenverbr. Diesel
+        </div>
+        <div class="nav-item" onclick="showPage('eigenverbrauch-adblue', this)">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M8 2C8 2 3 7 3 10a5 5 0 0010 0c0-3-5-8-5-8z"/>
+          </svg>
+          Eigenverbr. Ad Blue
         </div>
         <div class="nav-item" onclick="showPage('fahrzeuge', this)">
           <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -796,6 +807,13 @@
           </svg>
           SEPA-Mandate
         </div>
+        <div class="nav-item" onclick="showPage('rechnungen', this)">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="1" width="12" height="14" rx="1"/>
+            <path d="M5 5h6M5 8h6M5 11h4"/>
+          </svg>
+          Rechnungen
+        </div>
       </div>
 
       <div class="nav-section">
@@ -810,9 +828,17 @@
       </div>
     </nav>
 
-    <div class="db-status">
-      <span class="db-dot" id="db-dot"></span>
-      <span id="db-status-text" style="color: var(--text3); font-size: 11px;">Nicht verbunden</span>
+    <div class="db-status" style="display:flex; flex-direction:column; gap:8px;">
+      <div>
+        <span class="db-dot" id="db-dot"></span>
+        <span id="db-status-text" style="color: var(--text3); font-size: 11px;">Nicht verbunden</span>
+      </div>
+      <div id="login-user-info" style="display:none; font-size:10px; color:var(--text3); font-family:var(--mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+      <button id="logout-btn" onclick="doLogout()" style="display:none; background:transparent; border:1px solid var(--border2); border-radius:4px; color:var(--text2); font-size:11px; padding:4px 8px; cursor:pointer; font-family:var(--font); text-align:left; transition:all 0.15s;"
+        onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'"
+        onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border2)'">
+        ⏻ Abmelden
+      </button>
     </div>
   </aside>
 
@@ -943,10 +969,13 @@
           <div class="table-wrap">
             <table id="ekpreise-table">
               <thead><tr>
-                <th>Jahr</th><th>Monat</th><th>EK (€/Ltr.)</th><th>Eingetragen am</th><th></th>
+                <th>Jahr</th><th>Monat</th>
+                <th>EK Diesel (€/Ltr.)</th>
+                <th>EK Ad Blue (€/Ltr.)</th>
+                <th>Eingetragen am</th><th></th>
               </tr></thead>
               <tbody id="ekpreise-tbody">
-                <tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px;">Lade...</td></tr>
+                <tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;">Lade...</td></tr>
               </tbody>
             </table>
           </div>
@@ -977,7 +1006,7 @@
                 <option value="9">September</option><option value="10">Oktober</option>
                 <option value="11">November</option><option value="12">Dezember</option>
               </select>
-              <select id="ev-jahr" class="filter-select"></select>
+              <select id="ev-jahr" class="filter-select"><option value="2026"  selected>2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="2023">2023</option><option value="2022">2022</option><option value="2021">2021</option></select>
             </div>
             <div id="ev-ek-info" style="font-size:12px;color:var(--text3);"></div>
           </div>
@@ -998,6 +1027,53 @@
                 <th style="text-align:right">Gesamt (€)</th>
               </tr></thead>
               <tbody id="ev-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EIGENVERBRAUCH AD BLUE -->
+    <div id="page-eigenverbrauch-adblue" class="page">
+      <div class="topbar">
+        <span class="page-title">Eigenverbrauch Ad Blue</span>
+        <div class="topbar-actions">
+          <button class="btn btn-sm btn-primary" onclick="eigenverbrauchAdBlueLaden()" id="btn-evab-laden">Auswertung laden</button>
+          <button class="btn btn-sm" id="btn-evab-pdf" style="display:none" onclick="eigenverbrauchAdBluePDF()">📥 PDF erstellen</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div style="font-size:13px;font-weight:500;">Abrechnungsmonat:</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="evab-monat" class="filter-select">
+                <option value="1">Januar</option><option value="2">Februar</option>
+                <option value="3">März</option><option value="4">April</option>
+                <option value="5">Mai</option><option value="6">Juni</option>
+                <option value="7">Juli</option><option value="8">August</option>
+                <option value="9">September</option><option value="10">Oktober</option>
+                <option value="11">November</option><option value="12">Dezember</option>
+              </select>
+              <select id="evab-jahr" class="filter-select"><option value="2026"  selected>2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="2023">2023</option><option value="2022">2022</option><option value="2021">2021</option></select>
+            </div>
+            <div id="evab-ek-info" style="font-size:12px;color:var(--text3);"></div>
+          </div>
+        </div>
+        <div class="card" id="evab-result-card" style="display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div class="card-title" style="margin-bottom:0;" id="evab-result-title">Eigenverbrauch Ad Blue</div>
+            <div style="font-family:var(--mono);font-size:15px;font-weight:600;color:var(--blue);" id="evab-gesamt-euro">0,00 €</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Kostenstelle</th><th>Kennzeichen</th><th>Ausweis</th><th>Typ</th>
+                <th style="text-align:right">Menge (Ltr.)</th>
+                <th style="text-align:right">EK (€/Ltr.)</th>
+                <th style="text-align:right">Gesamt (€)</th>
+              </tr></thead>
+              <tbody id="evab-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -1064,9 +1140,15 @@
               <input class="form-input" id="ek-monat" type="number" min="1" max="12" placeholder="4">
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">EK-Preis (€ pro Liter)</label>
-            <input class="form-input" id="ek-preis" type="number" step="0.001" placeholder="1,234">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label">EK Diesel (€/Ltr.)</label>
+              <input class="form-input" id="ek-preis" type="number" step="0.001" placeholder="1,650">
+            </div>
+            <div class="form-group">
+              <label class="form-label">EK Ad Blue (€/Ltr.)</label>
+              <input class="form-input" id="ek-preis-adblue" type="number" step="0.001" placeholder="0,350">
+            </div>
           </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
             <button class="btn" onclick="document.getElementById('modal-ek').classList.remove('show')">Abbrechen</button>
@@ -1233,6 +1315,7 @@
               Fügt fehlende Spalten (Tel, Fax, Bank…) zu bestehenden Tabellen hinzu. Im Supabase SQL-Editor ausführen.
             </div>
             <button class="btn" onclick="showMigrationSQL()">Migration-SQL anzeigen</button>
+            <button class="btn" style="margin-left:8px;" onclick="showRlsSQL()">RLS-SQL anzeigen</button>
           </div>
         </div><!-- /config-grid-bottom -->
       </div>
@@ -1246,6 +1329,12 @@
         <div class="topbar-actions">
           <button class="btn btn-sm" id="btn-import-all" onclick="importAll()" style="display:none">
             Alle importieren
+          </button>
+          <button class="btn btn-sm" id="btn-reimport-hia" onclick="reimportHiaKomplett()" style="display:none; border-color:var(--orange); color:var(--orange);">
+            ⟳ HIA Komplett-Reimport
+          </button>
+          <button class="btn btn-sm" id="btn-reimport-marb" onclick="reimportMarbErzwingen()" style="display:none; border-color:var(--blue); color:var(--blue);">
+            ⟳ MARB Neu importieren
           </button>
         </div>
       </div>
@@ -1342,6 +1431,8 @@
             <div class="drop-count" id="count-hiatab" style="display:none"></div>
             <button class="btn btn-sm btn-primary" style="margin-top:8px;display:none;" id="btn-import-hiatab"
               onclick="importNur('hiatab')">Nur HIATAB importieren</button>
+            <button class="btn btn-sm" style="margin-top:4px;display:none;" id="btn-reimport-hiatab"
+              onclick="hiataBKomplettReimport()">⟳ HIATAB Komplett-Reimport</button>
           </div>
         </div>
 
@@ -1395,6 +1486,22 @@
                 <option value="3">Auf Rechnung</option>
               </select>
             </div>
+            <div style="display:flex; gap:6px; margin-top:6px;">
+              <select class="filter-select" id="kunden-umsatz" onchange="this.value ? ladeKundenUmsatzCache() : filterKunden()" style="flex:1; font-size:11px; padding:4px 6px;">
+                <option value="">Alle Kunden</option>
+                <option value="3">Umsatz letzte 3 Monate</option>
+                <option value="12">Umsatz letzte 12 Monate</option>
+                <option value="36">Umsatz letzte 36 Monate</option>
+                <option value="0">Kein Umsatz (inaktiv)</option>
+              </select>
+            </div>
+            <button id="btn-sepa-fehlend" onclick="toggleSepaFehlend()" style="
+              margin-top:6px; width:100%; background:transparent; border:1px solid var(--border2);
+              border-radius:4px; color:var(--text2); font-size:11px; padding:5px 8px; cursor:pointer;
+              font-family:var(--font); text-align:left; transition:all 0.15s; display:flex; align-items:center; gap:6px;">
+              <span id="sepa-fehlend-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;"></span>
+              <span id="sepa-fehlend-label">SEPA-Mandat fehlt</span>
+            </button>
             <div style="font-size:10px; color:var(--text3); margin-top:5px; font-family:var(--mono);">
               <span id="kunden-count">0</span> Kunden
             </div>
@@ -1428,6 +1535,7 @@
               <div id="kd-badge" style="margin-left:4px;"></div>
               <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
                 <button class="btn btn-sm" onclick="kdOpenSEPA()">SEPA-Mandat</button>
+                <button class="btn btn-sm" onclick="kdEditLeitweg()" style="border-color:var(--blue);color:var(--blue);" title="Leitweg-ID für XRechnung (Behördenkunden)">Leitweg-ID</button>
                 <button class="btn btn-sm btn-primary" onclick="kdGeneratePDF()">📄 Rechnung PDF</button>
               </div>
             </div>
@@ -1446,8 +1554,9 @@
                   <tr><td style="color:var(--text3);padding:3px 0;">Telefon</td><td id="kd-tel">—</td></tr>
                   <tr><td style="color:var(--text3);padding:3px 0;">Fax / Tel2</td><td id="kd-fax">—</td></tr>
                   <tr><td style="color:var(--text3);padding:3px 0;">E-Mail</td><td id="kd-email">—</td></tr>
+                  <tr><td style="color:var(--text3);padding:3px 0;">Leitweg-ID</td><td id="kd-leitweg" style="font-family:var(--mono);font-size:12px;">—</td></tr>
                   <tr><td style="color:var(--text3);padding:3px 0;">Funktion</td><td id="kd-funktion">—</td></tr>
-                  <tr><td style="color:var(--text3);padding:3px 0;">Bank</td><td id="kd-bank">—</td></tr>
+                  <td id="kd-bank" style="display:none"></td>
                 </table>
               </div>
 
@@ -1644,6 +1753,10 @@
           <button class="btn btn-sm" onclick="laufLaden()">🔍 Kunden laden</button>
           <button class="btn btn-sm btn-primary" id="btn-rechnungslauf" style="display:none"
             onclick="rechnungslaufStarten()">⚡ Rechnungslauf starten</button>
+          <button class="btn btn-sm" id="btn-sepa-xml" style="display:none;border-color:var(--blue);color:var(--blue);"
+            onclick="exportSEPA()">📥 SEPA XML</button>
+          <button class="btn btn-sm" id="btn-lauf-reset" style="display:none;border-color:var(--red);color:var(--red);"
+            onclick="rechnungslaufZuruecksetzen()">↩ Zurücksetzen</button>
           <button class="btn btn-sm" id="btn-email-versand" style="display:none;background:var(--blue);color:#fff;border-color:var(--blue);"
             onclick="emailMassenversand()">📧 E-Mails versenden</button>
         </div>
@@ -1699,8 +1812,17 @@
               <span style="font-size:11px;color:var(--text3);margin-left:auto;" id="lauf-sepa-label"></span>
             </div>
             <div class="table-wrap"><table id="lauf-table-sepa">
-              <thead><tr><th>Kunde</th><th>Ort</th><th style="text-align:right">Liter</th>
-                <th style="text-align:right">Betrag</th><th>SEPA</th><th>Re.-Nr.</th><th></th></tr></thead>
+              <thead><tr>
+                <th class="sortable" onclick="sortLaufTabelle('sepa','name',this)">Kunde</th>
+                <th class="sortable" onclick="sortLaufTabelle('sepa','ort',this)">Ort</th>
+                <th class="sortable" style="text-align:right" onclick="sortLaufTabelle('sepa','menge',this)">Liter</th>
+                <th class="sortable" style="text-align:right" onclick="sortLaufTabelle('sepa','total',this)">Betrag</th>
+                <th class="sortable" style="text-align:right" onclick="sortLaufTabelle('sepa','rcur',this)">RCUR</th>
+                <th class="sortable" style="text-align:right;color:var(--red)" onclick="sortLaufTabelle('sepa','diff',this)">Diff.</th>
+                <th>SEPA</th>
+                <th class="sortable" onclick="sortLaufTabelle('sepa','rechnungsnr',this)">Re.-Nr.</th>
+                <th></th>
+              </tr></thead>
               <tbody id="lauf-tbody-sepa"></tbody>
             </table></div>
           </div>
@@ -1712,8 +1834,14 @@
               <span style="font-size:11px;color:var(--text3);margin-left:auto;" id="lauf-rechnung-label"></span>
             </div>
             <div class="table-wrap"><table id="lauf-table-rechnung">
-              <thead><tr><th>Kunde</th><th>Ort</th><th style="text-align:right">Liter</th>
-                <th style="text-align:right">Betrag</th><th>Re.-Nr.</th><th></th></tr></thead>
+              <thead><tr>
+                <th class="sortable" onclick="sortLaufTabelle('rechnung','name',this)">Kunde</th>
+                <th class="sortable" onclick="sortLaufTabelle('rechnung','ort',this)">Ort</th>
+                <th class="sortable" style="text-align:right" onclick="sortLaufTabelle('rechnung','menge',this)">Liter</th>
+                <th class="sortable" style="text-align:right" onclick="sortLaufTabelle('rechnung','total',this)">Betrag</th>
+                <th class="sortable" onclick="sortLaufTabelle('rechnung','rechnungsnr',this)">Re.-Nr.</th>
+                <th></th>
+              </tr></thead>
               <tbody id="lauf-tbody-rechnung"></tbody>
             </table></div>
           </div>
@@ -1725,8 +1853,13 @@
               <span style="font-size:11px;color:var(--text3);margin-left:auto;" id="lauf-eigen-label"></span>
             </div>
             <div class="table-wrap"><table>
-              <thead><tr><th>Kunde</th><th style="text-align:right">Liter</th>
-                <th style="text-align:right">Betrag</th><th>Re.-Nr.</th><th></th></tr></thead>
+              <thead><tr>
+                <th class="sortable" onclick="sortLaufTabelle('eigen','name',this)">Kunde</th>
+                <th class="sortable" style="text-align:right" onclick="sortLaufTabelle('eigen','menge',this)">Liter</th>
+                <th class="sortable" style="text-align:right" onclick="sortLaufTabelle('eigen','total',this)">Betrag</th>
+                <th class="sortable" onclick="sortLaufTabelle('eigen','rechnungsnr',this)">Re.-Nr.</th>
+                <th></th>
+              </tr></thead>
               <tbody id="lauf-tbody-eigen"></tbody>
             </table></div>
           </div>
@@ -1747,7 +1880,78 @@
       </div>
     </div>
 
+    <!-- RECHNUNGEN -->
+    <div id="page-rechnungen" style="display:none; position:absolute; top:0; left:220px; right:0; bottom:0; overflow-y:auto; background:var(--bg); z-index:10;">
+      <div class="topbar">
+        <span class="page-title">Rechnungen</span>
+        <div class="topbar-actions">
+          <button class="btn btn-sm" id="btn-rech-bereinigen" style="display:none;border-color:var(--red);color:var(--red);" onclick="rechnungenLeereBereinigen()">🗑 Leere bereinigen</button>
+          <button class="btn btn-sm" onclick="rechnungenLaden()">↺ Aktualisieren</button>
+        </div>
+      </div>
+      <div class="content">
+        <!-- Statistik -->
+        <div class="stats-grid" style="margin-bottom:20px;">
+          <div class="stat-card accent">
+            <div class="stat-label">Gesamt</div>
+            <div class="stat-value" id="rech-stat-gesamt">—</div>
+            <div class="stat-sub" id="rech-stat-anzahl">0 Rechnungen</div>
+          </div>
+          <div class="stat-card" style="border-color:#1a3a4a;">
+            <div class="stat-label" style="color:var(--blue);">SEPA</div>
+            <div class="stat-value" style="color:var(--blue)" id="rech-stat-sepa">—</div>
+            <div class="stat-sub" id="rech-stat-sepa-cnt"></div>
+          </div>
+          <div class="stat-card" style="border-color:#3a2a10;">
+            <div class="stat-label" style="color:var(--accent);">Rechnung</div>
+            <div class="stat-value" style="color:var(--accent)" id="rech-stat-rechnung">—</div>
+            <div class="stat-sub" id="rech-stat-rechnung-cnt"></div>
+          </div>
+          <div class="stat-card" style="border-color:#1a3a2a;">
+            <div class="stat-label" style="color:var(--green);">Eigenverbrauch</div>
+            <div class="stat-value" style="color:var(--green)" id="rech-stat-eigen">—</div>
+            <div class="stat-sub" id="rech-stat-eigen-cnt"></div>
+          </div>
+        </div>
+        <!-- Filter -->
+        <div class="filter-bar">
+          <input type="text" class="search-input" id="rech-search" placeholder="Suche nach Kunde, Re.-Nr., Ort …" oninput="rechnungenFiltern()">
+          <select class="filter-select" id="rech-filter-typ" onchange="rechnungenFiltern()">
+            <option value="">Alle Zahltypen</option>
+            <option value="sepa">SEPA</option>
+            <option value="rechnung">Rechnung</option>
+            <option value="eigen">Eigenverbrauch</option>
+          </select>
+          <select class="filter-select" id="rech-filter-periode" onchange="rechnungenFiltern()">
+            <option value="">Alle Perioden</option>
+          </select>
+        </div>
+        <!-- Tabelle -->
+        <div class="card" style="padding:0;">
+          <div class="table-wrap">
+            <table id="rech-table">
+              <thead><tr>
+                <th class="sortable" onclick="rechnungenSortieren('rechnungsnr',this)">Re.-Nr.</th>
+                <th class="sortable" onclick="rechnungenSortieren('kundenname',this)">Kunde</th>
+                <th class="sortable" onclick="rechnungenSortieren('kundenort',this)">Ort</th>
+                <th class="sortable" onclick="rechnungenSortieren('abgerechnet_am',this)">Datum</th>
+                <th class="sortable" style="text-align:right" onclick="rechnungenSortieren('total_menge',this)">Liter</th>
+                <th class="sortable" style="text-align:right" onclick="rechnungenSortieren('betrag',this)">Betrag</th>
+                <th class="sortable" onclick="rechnungenSortieren('zahltyp',this)">Typ</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="rech-tbody">
+                <tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text3);">Bitte laden …</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px;" id="rech-count-label"></div>
+      </div>
+    </div>
+
   </div><!-- /main -->
+
 </div><!-- /layout -->
 
 <!-- Kunde Detail Modal -->
@@ -1801,6 +2005,69 @@
   </div>
 </div>
 
+<!-- Leitweg-ID Modal -->
+<div class="modal-overlay" id="modal-leitweg">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <span class="modal-title">Leitweg-ID (XRechnung)</span>
+      <div class="modal-close" onclick="closeModal('modal-leitweg')">&#215;</div>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6;">
+        Die Leitweg-ID wird nur bei Behörden und öffentlichen Auftraggebern benötigt.
+        Bei normalen Firmenkunden bitte leer lassen — diese erhalten automatisch eine ZUGFeRD-Rechnung.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Leitweg-ID</label>
+        <input class="form-input text-mono" type="text" id="leitweg-input"
+          placeholder="z.B. 991-12345678-06" style="letter-spacing:0.05em;">
+        <div style="font-size:11px;color:var(--text3);margin-top:5px;">
+          Format: Präfix-Kennung-Prüfziffer (z.B. 991-12345678-06)
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-primary" onclick="saveLeitwegId()">Speichern</button>
+        <button class="btn" onclick="closeModal('modal-leitweg')">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Login Overlay -->
+<div id="login-overlay" style="
+  display:flex; position:fixed; inset:0; z-index:9999;
+  background:#0f0f0f; align-items:center; justify-content:center;">
+  <div style="width:360px; background:#161616; border:1px solid #2a2a2a; border-radius:12px; padding:36px 32px;">
+    <div style="margin-bottom:28px; text-align:center;">
+      <div style="font-size:11px; font-weight:600; color:#f0a500; letter-spacing:0.08em; text-transform:uppercase; font-family:'IBM Plex Mono',monospace;">J. Runge</div>
+      <div style="font-size:18px; font-weight:600; color:#e8e8e8; margin-top:6px;">Tankstellenabrechnung</div>
+      <div style="font-size:12px; color:#666; margin-top:4px;">Bitte anmelden</div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:11px; color:#999; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.06em;">E-Mail</label>
+      <input id="login-email" type="email" autocomplete="email"
+        style="width:100%; background:#1e1e1e; border:1px solid #333; border-radius:6px; padding:9px 12px; color:#e8e8e8; font-size:14px; font-family:'IBM Plex Sans',sans-serif; outline:none;"
+        placeholder="name@beispiel.de" onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()">
+    </div>
+    <div style="margin-bottom:22px;">
+      <label style="font-size:11px; color:#999; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.06em;">Passwort</label>
+      <input id="login-pw" type="password" autocomplete="current-password"
+        style="width:100%; background:#1e1e1e; border:1px solid #333; border-radius:6px; padding:9px 12px; color:#e8e8e8; font-size:14px; font-family:'IBM Plex Sans',sans-serif; outline:none;"
+        placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+      <input type="checkbox" id="login-remember" style="accent-color:#f0a500; width:14px; height:14px; cursor:pointer;">
+      <label for="login-remember" style="font-size:12px; color:#999; cursor:pointer;">Angemeldet bleiben</label>
+    </div>
+    <button onclick="doLogin()" id="login-btn"
+      style="width:100%; background:#f0a500; border:none; border-radius:6px; padding:10px; color:#000; font-size:14px; font-weight:600; cursor:pointer; font-family:'IBM Plex Sans',sans-serif; transition:background 0.15s;">
+      Anmelden
+    </button>
+    <div id="login-error" style="display:none; margin-top:12px; padding:8px 12px; background:#2a1010; border:1px solid #e05252; border-radius:6px; font-size:12px; color:#e05252; text-align:center;"></div>
+
+  </div>
+</div>
+
 <!-- Toast Container -->
 <div class="toast-container" id="toast-container"></div>
 
@@ -1808,14 +2075,15 @@
 // ============================================================
 // CONFIG & STATE
 // ============================================================
-// Ensure default key is always available
-// Key wird nur aus localStorage geladen - nicht im Code gespeichert
 const SUPABASE_URL = 'https://rrkqdjswofqhzmrgvsnd.supabase.co';
 // EC-Ausweisnummern (MAAWNR — sichtbare Ausweisnummer, NICHT die interne MAIDENT!)
 const EC_MAIDENT = [19, 502, 505, 507, 508, 530];
 
 const state = {
   key: localStorage.getItem('sb_key') || '',
+  authToken: null,
+  refreshToken: null,
+  userEmail: null,
   connected: false,
   data: {
     kunden: [],
@@ -1830,6 +2098,117 @@ const state = {
   abrData: null
 };
 
+// ============================================================
+// AUTH — Supabase Email/Password Login
+// ============================================================
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJya3FkanN3b2ZxaHptcmd2c25kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1OTk2NDgsImV4cCI6MjA1OTE3NTY0OH0.placeholder';
+// ANON_KEY wird unten aus localStorage geladen — siehe state.key
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw    = document.getElementById('login-pw').value;
+  const remember = document.getElementById('login-remember')?.checked || false;
+  const btn   = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  if (!email || !pw) { showLoginError('Bitte E-Mail und Passwort eingeben.'); return; }
+  btn.textContent = 'Anmelden…'; btn.disabled = true;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': state.key },
+      body: JSON.stringify({ email, password: pw })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error_description || data.msg || 'Anmeldung fehlgeschlagen');
+    // Zugangsdaten speichern wenn gewünscht
+    if (remember) {
+      localStorage.setItem('sb_remember_email', email);
+      localStorage.setItem('sb_remember_pw', pw);
+      localStorage.setItem('sb_remember', '1');
+    } else {
+      localStorage.removeItem('sb_remember_email');
+      localStorage.removeItem('sb_remember_pw');
+      localStorage.removeItem('sb_remember');
+    }
+    // Session speichern
+    state.authToken = data.access_token;
+    state.refreshToken = data.refresh_token;
+    state.userEmail = data.user?.email || email;
+    sessionStorage.setItem('sb_access_token', data.access_token);
+    sessionStorage.setItem('sb_refresh_token', data.refresh_token);
+    sessionStorage.setItem('sb_user_email', state.userEmail);
+    onLoginSuccess();
+  } catch(e) {
+    showLoginError(e.message);
+    btn.textContent = 'Anmelden'; btn.disabled = false;
+  }
+}
+
+function prefillLogin() {
+  if (localStorage.getItem('sb_remember') === '1') {
+    const email = localStorage.getItem('sb_remember_email') || '';
+    const pw    = localStorage.getItem('sb_remember_pw') || '';
+    if (email) document.getElementById('login-email').value = email;
+    if (pw)    document.getElementById('login-pw').value = pw;
+    if (email && pw) document.getElementById('login-remember').checked = true;
+  }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg; el.style.display = 'block';
+  document.getElementById('login-btn').textContent = 'Anmelden';
+  document.getElementById('login-btn').disabled = false;
+}
+
+function onLoginSuccess() {
+  document.getElementById('login-overlay').style.display = 'none';
+  document.getElementById('logout-btn').style.display = 'block';
+  document.getElementById('login-user-info').style.display = 'block';
+  document.getElementById('login-user-info').textContent = state.userEmail;
+  afterAuthInit();
+}
+
+async function doLogout() {
+  if (!confirm('Wirklich abmelden?')) return;
+  try {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': state.key, 'Authorization': 'Bearer ' + state.authToken }
+    });
+  } catch(e) {}
+  state.authToken = null; state.refreshToken = null; state.userEmail = null;
+  sessionStorage.removeItem('sb_access_token');
+  sessionStorage.removeItem('sb_refresh_token');
+  sessionStorage.removeItem('sb_user_email');
+  document.getElementById('logout-btn').style.display = 'none';
+  document.getElementById('login-user-info').style.display = 'none';
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('login-pw').value = '';
+  document.getElementById('login-error').style.display = 'none';
+}
+
+async function tryRestoreSession() {
+  const token = sessionStorage.getItem('sb_access_token');
+  const email = sessionStorage.getItem('sb_user_email');
+  if (!token) return false;
+  // Verify token is still valid
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { 'apikey': state.key, 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) return false;
+    state.authToken = token;
+    state.refreshToken = sessionStorage.getItem('sb_refresh_token');
+    state.userEmail = email;
+    return true;
+  } catch(e) { return false; }
+}
+
+// ============================================================
+// CONFIG
+// ============================================================
 // Load config from localStorage
 async function loadConfig() {
   const k = localStorage.getItem('sb_key') || '';
@@ -1850,12 +2229,22 @@ async function loadConfig() {
     return;
   }
 
-  // Await connection silently, then load dashboard
-  if (state.key) {
-    await testConnection(true);
-    if (state.connected) refreshDashboard();
+  // Versuche bestehende Session wiederherzustellen
+  const restored = await tryRestoreSession();
+  if (restored) {
+    onLoginSuccess();
+  } else {
+    // Login-Screen anzeigen (overlay bleibt sichtbar)
+    document.getElementById('login-btn').textContent = 'Anmelden';
+    document.getElementById('login-btn').disabled = false;
+    prefillLogin();
   }
-  // Email-Config laden
+}
+
+async function afterAuthInit() {
+  const cfg = JSON.parse(localStorage.getItem('cfg') || '{}');
+  await testConnection(true);
+  if (state.connected) refreshDashboard();
   setTimeout(loadEmailConfig, 500);
 }
 
@@ -1879,6 +2268,19 @@ function saveConfig() {
 // NAVIGATION
 // ============================================================
 function showPage(id, el) {
+  // Rechnungsseite immer zuerst verstecken
+  document.getElementById('page-rechnungen').style.display = 'none';
+
+  if (id === 'rechnungen') {
+    // Alle anderen Pages deaktivieren
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-rechnungen').style.display = 'block';
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    if (el) el.classList.add('active');
+    rechnungenLaden();
+    return;
+  }
+
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const page = document.getElementById('page-' + id);
   page.classList.add('active');
@@ -1894,26 +2296,29 @@ function showPage(id, el) {
     const el = document.getElementById('hia-last-import');
     if (el) el.textContent = last ? `Letzter Import: ${last}` : 'Noch nie importiert';
   }
-  if (id === 'abrechnung') initLaufPeriods();
+  if (id === 'abrechnung') { initLaufPeriods(); document.getElementById('btn-lauf-reset').style.display = 'inline-block'; }
   if (id === 'ausweise') loadAusweise();
   if (id === 'sepa') loadSepaMandate();
   if (id === 'dashboard') refreshDashboard();
   if (id === 'fahrzeuge') loadFahrzeuge();
   if (id === 'ekpreise') loadEkPreise();
   if (id === 'eigenverbrauch') initEigenverbrauch();
+  if (id === 'eigenverbrauch-adblue') initEigenverbrauchAdBlue();
 }
 
 // ============================================================
 // SUPABASE API
 // ============================================================
-const _SBKEY = localStorage.getItem('sb_key') || '';
+// _SBURL & _SBKEY dynamisch — nutzt JWT-Auth-Token wenn eingeloggt, sonst anon-key
 const _SBURL = 'https://rrkqdjswofqhzmrgvsnd.supabase.co';
+Object.defineProperty(window, '_SBKEY', { get: () => state.key || localStorage.getItem('sb_key') || '' });
+// Bearer-Token: nach Login = JWT des Users, davor = anon key
+Object.defineProperty(window, '_BEARER', { get: () => state.authToken || _SBKEY });
 
 function getAuthHeaders() {
-  const key = _SBKEY;
   return {
-    'apikey': key,
-    'Authorization': 'Bearer ' + key
+    'apikey': _SBKEY,
+    'Authorization': 'Bearer ' + _BEARER
   };
 }
 
@@ -1932,7 +2337,7 @@ async function sbFetch(path, opts = {}) {
     body,
     headers: {
       'apikey': _SBKEY,
-      'Authorization': 'Bearer ' + _SBKEY,
+      'Authorization': 'Bearer ' + _BEARER,
       'Content-Type': 'application/json',
       'Prefer': prefer,
       ...extraHeaders
@@ -1948,8 +2353,8 @@ async function sbFetch(path, opts = {}) {
 
 async function testConnection(silent = false) {
   try {
-    const _r = await fetch('https://rrkqdjswofqhzmrgvsnd.supabase.co/rest/v1/kunden?limit=1', {
-      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Prefer': 'count=exact' }
+    const _r = await fetch(`${_SBURL}/rest/v1/kunden?limit=1`, {
+      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'count=exact' }
     });
     if (!_r.ok) throw new Error(await _r.text());
     state.connected = true;
@@ -2028,10 +2433,12 @@ create table if not exists kunden (
   telefon text,
   email text,
   kuzart integer,  -- 1=SEPA, 2=Eigenverbr., 3=Rechnung (aus KUZART)
+  leitweg_id text,               -- Leitweg-ID fuer XRechnung (nur Behoerdenkunden)
   aktiv boolean default true,
   created_at timestamptz default now()
 );
 
+-- Fuer bestehende Datenbanken: ALTER TABLE kunden ADD COLUMN IF NOT EXISTS leitweg_id text;
 create table if not exists ausweise (
   id serial primary key,
   marbnr integer unique not null,
@@ -2040,6 +2447,7 @@ create table if not exists ausweise (
   maident integer,
   mazaart integer,  -- 1=SEPA, 2=Eigenverbrauch, 3=Rechnung
   pin text,
+  rabatt numeric(5,2) default 0,
   aktiv boolean default true,
   created_at timestamptz default now()
 );
@@ -2155,7 +2563,7 @@ function showSchemaSQL(sql) {
   document.getElementById('modal-kunde-title').textContent = 'Datenbankschema SQL';
   document.getElementById('modal-kunde-body').innerHTML = `
     <p style="font-size: 12px; color: var(--text2); margin-bottom: 12px;">
-      Bitte dieses SQL im <a href="${SUPABASE_URL}/project/rrkqdjswofqhzmrgvsnd/sql" target="_blank" style="color: var(--blue);">Supabase SQL Editor</a> ausführen:
+      Bitte dieses SQL im <a href="${_SBURL}/project/rrkqdjswofqhzmrgvsnd/sql" target="_blank" style="color: var(--blue);">Supabase SQL Editor</a> ausführen:
     </p>
     <pre style="background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 14px; font-family: var(--mono); font-size: 11px; color: var(--text2); overflow-x: auto; max-height: 400px; white-space: pre; line-height: 1.6;">${sql}</pre>
     <button class="btn btn-primary mt-3" onclick="copySQL()">SQL kopieren</button>
@@ -2170,13 +2578,17 @@ function copySQL() {
 }
 
 // ============================================================
-// DBF PARSER (CP1252 / dBASE III+)
+// DBF PARSER (auto-detect encoding via header byte 29)
 // ============================================================
 function parseDBF(buffer) {
   const view = new DataView(buffer);
   const numRecords = view.getUint32(4, true);
   const headerSize = view.getUint16(8, true);
   const recordSize = view.getUint16(10, true);
+
+  // Encoding: windows-1252 fuer alle DBFs (auch alte DOS-DBFs).
+  // CP850-Umlaute an 0x84/0x94/0x99/0x9a werden per fixDbfUmlauts nachkorrigiert.
+  const charset = 'windows-1252';
 
   const fields = [];
   let offset = 32;
@@ -2191,7 +2603,8 @@ function parseDBF(buffer) {
     offset += 32;
   }
 
-  const decoder = new TextDecoder('windows-1252');
+  let decoder;
+  try { decoder = new TextDecoder(charset); } catch(e) { decoder = new TextDecoder('windows-1252'); }
   const records = [];
 
   for (let i = 0; i < numRecords; i++) {
@@ -2223,7 +2636,7 @@ function parseDBF(buffer) {
     records.push(record);
   }
 
-  return { fields, records };
+  return { fields, records, charset };
 }
 
 // ============================================================
@@ -2331,15 +2744,21 @@ async function processDBF(file, name) {
     if (dz) dz.classList.add('done');
     if (cnt) { cnt.style.display = 'block'; cnt.textContent = `✓ ${parsed.records.length.toLocaleString('de')} Datensätze geladen`; }
 
-    logImport(`[${name.toUpperCase()}] ${parsed.records.length} Sätze gelesen (${parsed.fields.length} Felder)`);
+    logImport(`[${name.toUpperCase()}] ${parsed.records.length} Sätze gelesen (${parsed.fields.length} Felder, Encoding: ${parsed.charset || 'unbekannt'})`);
 
     // Show import button if we have data
     const allLoaded = ['hia','kunden','marb','ort','card','sepa_tab'].filter(n => state.dbfRaw[n]).length;
     document.getElementById('btn-import-all').style.display = allLoaded > 0 ? 'block' : 'none';
+    const hiaLoaded = state.dbfRaw.hia && state.dbfRaw.hia.records.length > 0;
+    document.getElementById('btn-reimport-hia').style.display = hiaLoaded ? 'block' : 'none';
+    const marbLoaded = state.dbfRaw.marb && state.dbfRaw.marb.records.length > 0;
+    document.getElementById('btn-reimport-marb').style.display = marbLoaded ? 'block' : 'none';
     // Zeige einzelne Import-Buttons für historische Dateien
     ['hiatab','sepa_tab'].forEach(name => {
       const btn = document.getElementById(`btn-import-${name}`);
       if (btn) btn.style.display = state.dbfRaw[name] ? 'block' : 'none';
+      const btnR = document.getElementById(`btn-reimport-${name}`);
+      if (btnR) btnR.style.display = state.dbfRaw[name] ? 'block' : 'none';
     });
 
     toast(`${name.toUpperCase()}.DBF geladen: ${parsed.records.length} Sätze`, 'success');
@@ -2540,6 +2959,16 @@ async function importAusweise(records, lastModified) {
     return;
   }
   logImport(`[MARB] ${records.length} Sätze werden importiert...`);
+  // Debug: zeige MATRRAB-Werte
+  const mitRabatt = records.filter(r => r.MATRRAB != null && parseFloat(r.MATRRAB) > 0);
+  if (mitRabatt.length) {
+    logImport(`[MARB] ${mitRabatt.length} Ausweise mit Rabatt (MATRRAB > 0):`);
+    mitRabatt.slice(0,10).forEach(r => logImport(`  → MAIDENT=${r.MAIDENT} MAAWNR=${r.MAAWNR} MANNAME="${r.MANNAME}" MATRRAB=${r.MATRRAB}`));
+  } else {
+    logImport(`[MARB] ⚠ Kein Ausweis hat MATRRAB > 0 — Feld möglicherweise nicht in DBF vorhanden`);
+    const felder = records[0] ? Object.keys(records[0]).join(', ') : '—';
+    logImport(`[MARB] Verfügbare Felder: ${felder}`);
+  }
   // MAAWNR = Ausweisnummer (z.B. 46), MAIDENT = interne ID (z.B. 718)
   // MANNAME = Bezeichnung (z.B. "BIMetryx, 46")
   const rows = records.map(r => ({
@@ -2548,7 +2977,8 @@ async function importAusweise(records, lastModified) {
     bezeichnung: (r.MANNAME || '').trim(),
     maident:     r.MAIDENT != null ? Math.round(r.MAIDENT) : null,
     mazaart:     r.MAZAART || null,
-    aktiv:       !r.MADEL
+    aktiv:       !r.MADEL,
+    rabatt:      r.MATRRAB != null ? parseFloat(r.MATRRAB) : 0
   })).filter(r => r.marbnr != null && r.marbnr > 0);
   // Duplikate innerhalb der Datei deduplizieren — letzter Eintrag gewinnt
   const deduped = Object.values(rows.reduce((acc, r) => { acc[r.marbnr] = r; return acc; }, {}));
@@ -2587,7 +3017,7 @@ async function importCard(records, lastModified) {
   logImport(`[CARD] ${rows.length} Einträge mit PIN gefunden`);
 
   // Batch-PATCH: maident → pin in ausweise
-  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
   const PARALLEL = 20;
   for (let i = 0; i < rows.length; i += PARALLEL) {
@@ -2602,6 +3032,24 @@ async function importCard(records, lastModified) {
 
   localStorage.setItem(lastKey, new Date().toISOString());
   logImport(`[CARD] ✓ ${updated} Ausweise mit PIN aktualisiert`);
+}
+
+async function hiataBKomplettReimport() {
+  if (!state.key) { toast('Nicht verbunden', 'error'); return; }
+  const parsed = state.dbfRaw['hiatab'];
+  if (!parsed) { toast('HIATAB nicht geladen', 'error'); return; }
+  // Zeitstempel löschen damit der Import nicht übersprungen wird
+  localStorage.removeItem('hiatab_last_import');
+  logImport('[HIATAB] Komplett-Reimport gestartet (Zeitstempel ignoriert)...');
+  try {
+    // lastModified auf null setzen damit die Datumsprüfung in importHiatab übersprungen wird
+    await importHiatab(parsed.records, null);
+    logImport('[HIATAB] ✓ Komplett-Reimport abgeschlossen');
+    toast('HIATAB Komplett-Reimport erfolgreich', 'success');
+  } catch(e) {
+    logImport('[FEHLER] ' + e.message);
+    toast('Fehler: ' + e.message, 'error');
+  }
 }
 
 async function importNur(name) {
@@ -2624,12 +3072,28 @@ async function importNur(name) {
   }
 }
 
+// Umlaut-Korrektur: windows-1252 Decoder liefert fuer alte CP850-DBF-Bytes falsche Zeichen.
+// Nur 3 Umlaute sind betroffen (die im CP850-Bereich 0x80-0x9f liegen, wo windows-1252 andere
+// Zeichen hat): oe (0x94->"), Oe (0x99->TM), Ue (0x9a->U-akut).
+// Alle anderen Umlaute (ae/ue/Ae/Ue/ss) liegen bei 0xe4/0xfc/0xc4/0xdc/0xdf = Latin-1-Positionen
+// und werden von windows-1252 korrekt dekodiert.
+function fixDbfUmlauts(str) {
+  if (!str || typeof str !== 'string') return str || '';
+  return str
+    .replace(/”/g, 'ö')
+    .replace(/™/g, 'Ö')
+    .replace(/Ú/g, 'Ü');
+}
 async function importSepaTab(records) {
   if (!records.length) return;
   // Log first record field names for debugging
   if (records[0]) {
     logImport(`[SEPA_TAB] Felder: ${Object.keys(records[0]).join(', ')}`);
     logImport(`[SEPA_TAB] Beispiel: ${JSON.stringify(records[0]).slice(0,200)}`);
+    // Zeige KUBEZ1-Rohwert für Encoding-Diagnose
+    const raw = records[0].KUBEZ1 || '';
+    const codes = [...raw].map(c => '0x' + c.charCodeAt(0).toString(16).padStart(2,'0')).join(' ');
+    logImport(`[SEPA_TAB] KUBEZ1 Rohbytes: ${codes}`);
   }
 
   const rows = records.map(r => {
@@ -2646,7 +3110,7 @@ async function importSepaTab(records) {
     return {
       mandatsreferenz: String(mandId).trim() || String(Math.round(kuident) || 0),
       kundennr:        kuident ? Math.round(kuident) : null,
-      kontoinhaber:    (r.KUBEZ1 || '').trim(),
+      kontoinhaber:    fixDbfUmlauts((r.KUBEZ1 || '').trim()),
       iban:            (r.IBAN || '').trim(),
       bic:             (r.BIC || '').trim(),
       erteilungsdatum: datum,
@@ -2721,7 +3185,7 @@ async function importHiatab(records, lastModified) {
     {
       method: 'PATCH',
       headers: {
-        'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+        'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
         'Content-Type': 'application/json', 'Prefer': 'return=minimal'
       },
       body: JSON.stringify({ abgerechnet: true, rechnungsnr: '2052' })
@@ -2751,7 +3215,7 @@ async function importHiatab(records, lastModified) {
       fetch(`${_SBURL}/rest/v1/tankungen?hibelegnr=in.(${ids.join(',')})`, {
         method: 'PATCH',
         headers: {
-          'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+          'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
           'Content-Type': 'application/json', 'Prefer': 'return=minimal'
         },
         body: JSON.stringify({
@@ -2783,29 +3247,33 @@ async function importHiatab(records, lastModified) {
   logImport(`[HIATAB] ✓ ${updated} Tankungen aktualisiert, ${errCount} Fehler`);
 }
 
-async function importTankungen(records, lastModified) {
+async function importTankungen(records, lastModified, forceAll = false) {
   if (!records.length) return;
   const lastKey = 'hia_last_import';
   const lastImport = localStorage.getItem(lastKey);
-  if (lastModified && lastImport && new Date(lastModified).getTime() <= new Date(lastImport).getTime()) {
+  if (!forceAll && lastModified && lastImport && new Date(lastModified).getTime() <= new Date(lastImport).getTime()) {
     logImport(`[HIA] Keine Änderung seit letztem Import (${new Date(lastImport).toLocaleString('de')}) — übersprungen`);
     return;
   }
   logImport(`[HIA] ${records.length} Sätze in der Datei...`);
 
-  // Letztes Import-Datum aus Supabase holen
+  // Letztes Import-Datum aus Supabase holen (nur wenn kein Komplett-Import)
   let lastDate = null;
-  try {
-    const res = await fetch(
-      `${_SBURL}/rest/v1/tankungen?select=hidatum&order=hidatum.desc&limit=1`,
-      { headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-0' } }
-    );
-    const data = await res.json();
-    if (Array.isArray(data) && data[0]?.hidatum) {
-      lastDate = data[0].hidatum; // YYYY-MM-DD
-      logImport(`[HIA] Letzter Eintrag in DB: ${lastDate} — nur neuere Daten werden importiert`);
-    }
-  } catch(e) {}
+  if (!forceAll) {
+    try {
+      const res = await fetch(
+        `${_SBURL}/rest/v1/tankungen?select=hidatum&order=hidatum.desc&limit=1`,
+        { headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-0' } }
+      );
+      const data = await res.json();
+      if (Array.isArray(data) && data[0]?.hidatum) {
+        lastDate = data[0].hidatum;
+        logImport(`[HIA] Letzter Eintrag in DB: ${lastDate} — nur neuere Daten werden importiert`);
+      }
+    } catch(e) {}
+  } else {
+    logImport(`[HIA] Komplett-Import: alle Sätze werden verarbeitet`);
+  }
 
   // Build ausweis lookup: MAIDENT -> {mazaart, marbnr, bezeichnung, kundennr}
   // Zusätzlich: MAAWNR (sichtbare Ausweisnummer) → MAIDENT Mapping für EC-Erkennung
@@ -2916,7 +3384,7 @@ async function importTankungen(records, lastModified) {
   // Gesamtzahl Badge aktualisieren
   try {
     const cr = await fetch(`${_SBURL}/rest/v1/tankungen?select=id`, {
-      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                  'Prefer': 'count=exact', 'Range': '0-0' }
     });
     const total = cr.headers.get('content-range')?.split('/')[1];
@@ -2939,7 +3407,7 @@ async function upsertBatch(table, rows, onConflict) {
       method: 'POST',
       headers: {
         'apikey': _SBKEY,
-        'Authorization': 'Bearer ' + _SBKEY,
+        'Authorization': 'Bearer ' + _BEARER,
         'Content-Type': 'application/json',
         'Prefer': 'resolution=merge-duplicates,return=minimal'
       },
@@ -2964,7 +3432,7 @@ async function loadKunden() {
     // Fetch all with Range header to bypass PostgREST 1000-row default limit
     const headers = {
       'apikey': _SBKEY,
-      'Authorization': 'Bearer ' + _SBKEY,
+      'Authorization': 'Bearer ' + _BEARER,
       'Range': '0-9999',
       'Prefer': 'return=representation'
     };
@@ -2977,7 +3445,7 @@ async function loadKunden() {
         const to = from + pageSize - 1;
         const r = await fetch(`${_SBURL}/rest/v1/ort?select=*&order=ortid`, {
           headers: {
-            'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+            'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
             'Range': `${from}-${to}`, 'Prefer': 'return=representation'
           }
         });
@@ -2989,14 +3457,16 @@ async function loadKunden() {
       return all;
     }
 
-    const [kundenRes, ausweisenRes, orte] = await Promise.all([
+    const [kundenRes, ausweisenRes, orte, sepaMandateRes] = await Promise.all([
       fetch(`${_SBURL}/rest/v1/kunden?select=*&order=name`, { headers }).then(r => r.json()),
       fetch(`${_SBURL}/rest/v1/ausweise?select=*&order=marbnr`, { headers }).then(r => r.json()),
-      loadAllOrte()
+      loadAllOrte(),
+      fetch(`${_SBURL}/rest/v1/sepa_mandate?select=kundennr&limit=5000`, { headers }).then(r => r.json())
     ]);
 
     const kunden = kundenRes;
     const ausweise = ausweisenRes;
+    state.data.sepa = Array.isArray(sepaMandateRes) ? sepaMandateRes : [];
 
     const ortMap = {};
     for (const o of (orte || [])) ortMap[String(o.ortid)] = o;
@@ -3032,6 +3502,7 @@ async function loadKunden() {
 function renderKundenList(kunden) {
   const list = document.getElementById('kunden-list');
   document.getElementById('kunden-count').textContent = kunden.length;
+  document.getElementById('badge-kunden').textContent = kunden.length;
   if (!kunden.length) {
     list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">Keine Kunden gefunden</div>';
     return;
@@ -3059,18 +3530,126 @@ function renderKundenList(kunden) {
   }).join('');
 }
 
+let _sepaFehlendAktiv = false;
+
+function toggleSepaFehlend() {
+  _sepaFehlendAktiv = !_sepaFehlendAktiv;
+  const btn = document.getElementById('btn-sepa-fehlend');
+  const dot = document.getElementById('sepa-fehlend-dot');
+  const label = document.getElementById('sepa-fehlend-label');
+  if (_sepaFehlendAktiv) {
+    btn.style.borderColor = 'var(--red)';
+    btn.style.color = 'var(--red)';
+    dot.style.background = 'var(--red)';
+    label.textContent = 'SEPA-Mandat fehlt ✕';
+    // Zahlungsart auf SEPA setzen
+    document.getElementById('kunden-art').value = '1';
+  } else {
+    btn.style.borderColor = 'var(--border2)';
+    btn.style.color = 'var(--text2)';
+    dot.style.background = 'var(--text3)';
+    label.textContent = 'SEPA-Mandat fehlt';
+    document.getElementById('kunden-art').value = '';
+  }
+  filterKunden();
+}
+
 function filterKunden() {
   const q = document.getElementById('kunden-search').value.toLowerCase();
   const art = document.getElementById('kunden-art').value;
+  const umsatzFilter = (document.getElementById('kunden-umsatz')?.value) || '';
+  const sepaMandate = state.data.sepa || [];
+  const mandateKundennrs = new Set(sepaMandate.map(m => String(m.kundennr)));
+
+  // Umsatz-Cutoff berechnen
+  let cutoffDate = null;
+  if (umsatzFilter && umsatzFilter !== '0') {
+    const d = new Date();
+    d.setMonth(d.getMonth() - parseInt(umsatzFilter));
+    cutoffDate = d.toISOString().slice(0, 10); // YYYY-MM-DD
+  }
+
   const filtered = state.data.kunden.filter(k => {
     const matchQ = !q || (k.name||'').toLowerCase().includes(q) ||
       String(k.kundennr).includes(q) ||
       (k.ort?.ortname||'').toLowerCase().includes(q) ||
       (k.vorname||'').toLowerCase().includes(q);
     const matchArt = !art || String(k.mazaart) === art;
-    return matchQ && matchArt;
+    // SEPA-Mandat fehlt: nur SEPA-Kunden (mazaart=1) ohne Mandat
+    const matchSepaFehlend = !_sepaFehlendAktiv || (
+      String(k.mazaart) === '1' && !mandateKundennrs.has(String(k.kundennr))
+    );
+
+    // Umsatz-Filter: prüfe letzte Tankung per Kunde (aus Cache _kundenLetztesTankdatum)
+    let matchUmsatz = true;
+    if (umsatzFilter && window._kundenLetztesTankdatum) {
+      const letztes = window._kundenLetztesTankdatum[k.kundennr] || null;
+      if (umsatzFilter === '0') {
+        matchUmsatz = !letztes; // kein Umsatz = kein Eintrag
+      } else {
+        matchUmsatz = letztes && letztes >= cutoffDate;
+      }
+    } else if (umsatzFilter && !window._kundenLetztesTankdatum) {
+      matchUmsatz = true; // noch nicht geladen, alle anzeigen bis Cache bereit
+    }
+
+    return matchQ && matchArt && matchSepaFehlend && matchUmsatz;
   });
   renderKundenList(filtered);
+}
+
+// Laedt pro Kunde das neueste Tankdatum via cursor-basierter Paginierung
+async function ladeKundenUmsatzCache() {
+  if (window._kundenLetztesTankdatum) {
+    filterKunden();
+    return;
+  }
+  const btn = document.getElementById('kunden-umsatz');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+  toast('Umsatz-Daten werden geladen…', 'info');
+
+  try {
+    const cache = {};
+    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER };
+    const pageSize = 5000;
+    let cursor = null;
+    let page = 0;
+
+    while (true) {
+      let url = `${_SBURL}/rest/v1/tankungen?select=kundennr,hidatum,id&order=hidatum.desc,id.desc`;
+      if (cursor) url += `&hidatum=lte.${cursor.date}&id=lt.${cursor.id}`;
+
+      const res = await fetch(url, { headers: { ...h, 'Range': `0-${pageSize - 1}` } });
+      const rows = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0) break;
+
+      for (const t of rows) {
+        if (t.kundennr != null && t.hidatum && !cache[t.kundennr]) {
+          cache[t.kundennr] = t.hidatum;
+        }
+      }
+
+      page++;
+      if (page % 3 === 0) toast(`Lade… ${Object.keys(cache).length} Kunden erfasst (Seite ${page})`, 'info');
+      if (rows.length < pageSize) break;
+
+      const last = rows[rows.length - 1];
+      cursor = { date: last.hidatum, id: last.id };
+    }
+
+    window._kundenLetztesTankdatum = cache;
+    toast(`Umsatz-Filter bereit — ${Object.keys(cache).length} Kunden mit Umsatz`, 'success');
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'error');
+    console.error('[UmsatzCache]', e);
+  }
+
+  if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  filterKunden();
+}
+
+function _sbHeaders() {
+  return { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'return=representation' };
 }
 
 // ---- Kundendetail (Master-Detail rechte Seite) ----
@@ -3105,11 +3684,13 @@ async function openKundeDetail(nr) {
     : (k.ortid ? '…' : '—');
   document.getElementById('kd-tel').textContent = k.telefon || k.ort?.tel1 || k.ort?.tel2 || '—';
   document.getElementById('kd-email').textContent = k.email || '—';
+  const leitwegEl = document.getElementById('kd-leitweg');
+  if (leitwegEl) leitwegEl.textContent = k.leitweg_id || '—';
 
   // Falls ortid vorhanden aber ort nicht geladen → direkt nachladen
   if (k.ortid && !k.ort) {
     fetch(`${_SBURL}/rest/v1/ort?ortid=eq.${k.ortid}&select=*`, {
-      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-1', 'Prefer': 'return=representation' }
+      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-1', 'Prefer': 'return=representation' }
     }).then(r => r.json()).then(data => {
       if (Array.isArray(data) && data[0]) {
         k.ort = data[0];
@@ -3134,6 +3715,7 @@ async function openKundeDetail(nr) {
         <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">MAIDENT</th>
         <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Zahlungsart</th>
         <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">PIN</th>
+        <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Rabatt</th>
       </tr></thead>
       <tbody>${aws.map(a => `<tr style="cursor:pointer;" onclick="toggleAusweisUmsatz(this, ${a.maident}, '${(a.bezeichnung||'').replace(/'/g,"\'")}')">
         <td style="padding:4px 8px;font-family:var(--mono);">${a.marbnr}</td>
@@ -3141,9 +3723,10 @@ async function openKundeDetail(nr) {
         <td style="padding:4px 8px;font-family:var(--mono);">${a.maident||''}</td>
         <td style="padding:4px 8px;">${getZahltyp(a.mazaart).badge}</td>
         <td style="padding:4px 8px;font-family:var(--mono);letter-spacing:0.1em;">${a.pin||'—'}</td>
+        <td style="padding:4px 8px;font-family:var(--mono);">${parseFloat(a.rabatt||0) > 0 ? `<span style="color:var(--green);font-weight:600;">${parseFloat(a.rabatt)} ct/L</span>` : '<span style="color:var(--text3);">—</span>'}</td>
       </tr>
       <tr class="ausweis-umsatz-row" id="ausweis-umsatz-${a.maident}" style="display:none;">
-        <td colspan="5" style="padding:0;"></td>
+        <td colspan="6" style="padding:0;"></td>
       </tr>`).join('')}
       </tbody>
     </table>`;
@@ -3160,14 +3743,14 @@ async function openKundeDetail(nr) {
   // Direct fetch with proper headers (bypass sbFetch Prefer issue)
   const h = {
     'apikey': _SBKEY,
-    'Authorization': 'Bearer ' + _SBKEY,
+    'Authorization': 'Bearer ' + _BEARER,
     'Range': '0-9999',
     'Prefer': 'return=representation'
   };
 
   try {
     const [mRes, tRes] = await Promise.all([
-      fetch(`${_SBURL}/rest/v1/sepa_mandate?kundennr=eq.${nr}`, { headers: h }),
+      fetch(`${_SBURL}/rest/v1/sepa_mandate?select=*&kundennr=eq.${nr}`, { headers: h }),
       fetch(`${_SBURL}/rest/v1/tankungen?kundennr=eq.${nr}&order=hidatum.desc,hizeit.desc&select=hidatum,hizeit,himenge,hipreis,hilpreis,maident,hiartbez,zahltyp,rechnungsnr,abgerechnet,mwst_satz`, { headers: h })
     ]);
 
@@ -3298,12 +3881,14 @@ function renderKdSEPA(sepa, nr) {
       </div>
       <table style="width:100%;font-size:12px;border-collapse:collapse;">
         <tr><td style="color:var(--text3);padding:3px 0;width:90px;">Referenz</td><td class="mono">${sepa.mandatsreferenz||''}</td></tr>
-        <tr><td style="color:var(--text3);padding:3px 0;">Inhaber</td><td>${sepa.kontoinhaber||''}</td></tr>
+        <tr><td style="color:var(--text3);padding:3px 0;">Inhaber</td><td>${state.data.kunden.find(x=>x.kundennr==nr)?.name || sepa.kontoinhaber || ''}</td></tr>
+        <tr><td style="color:var(--text3);padding:3px 0;">Bank</td><td>${(function(){ const k2=state.data.kunden.find(x=>x.kundennr==nr); const o2=k2?.ort||{}; return o2.orbank ? `${o2.orbank}${o2.orblz?' · '+o2.orblz:''}` : ''; })()}</td></tr>
         <tr><td style="color:var(--text3);padding:3px 0;">IBAN</td><td class="mono" style="font-size:11px;">${ibanDisplay(sepa.iban)}</td></tr>
         <tr><td style="color:var(--text3);padding:3px 0;">BIC</td><td class="mono">${sepa.bic||''}</td></tr>
         <tr><td style="color:var(--text3);padding:3px 0;">Datum</td><td>${sepa.erteilungsdatum||''}</td></tr>
       </table>
-      <button class="btn btn-sm" style="margin-top:10px;" onclick="openSepaNeu(${nr})">Bearbeiten</button>`;
+      <button class="btn btn-sm" style="margin-top:10px;" onclick="editMandatDirekt()">Bearbeiten</button>`;
+    window._currentSepaMandat = sepa;
   } else {
     el.innerHTML = `
       <div style="display:inline-flex;align-items:center;gap:6px;background:#2a1010;border:1px solid var(--red);
@@ -3312,6 +3897,46 @@ function renderKdSEPA(sepa, nr) {
       </div>
       <br>
       <button class="btn btn-sm" style="margin-top:6px;" onclick="openSepaNeu(${nr})">Mandat anlegen</button>`;
+  }
+}
+
+async function periodeZuruecksetzen(kundennr, von, bis, rechnungsnr) {
+  const msg = rechnungsnr
+    ? `Periode ${von} – ${bis} (Re. ${rechnungsnr}) zurücksetzen?
+
+Tankungen werden wieder auf "offen" gesetzt und die Rechnung gelöscht.`
+    : `Periode ${von} – ${bis} zurücksetzen?
+
+Tankungen werden wieder auf "offen" gesetzt.`;
+  if (!confirm(msg)) return;
+
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
+              'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+  try {
+    // 1. Tankungen zurücksetzen
+    await fetch(
+      `${_SBURL}/rest/v1/tankungen?kundennr=eq.${kundennr}&hidatum=gte.${von}&hidatum=lte.${bis}`,
+      { method: 'PATCH', headers: h,
+        body: JSON.stringify({ abgerechnet: false, rechnungsnr: null, abgerechnet_am: null, periode_von: null, periode_bis: null }) }
+    );
+
+    // 2. Positionen + Rechnung löschen wenn Nummer bekannt
+    if (rechnungsnr) {
+      await fetch(`${_SBURL}/rest/v1/rechnung_positionen?rechnungsnr=eq.${rechnungsnr}`,
+        { method: 'DELETE', headers: h });
+      await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${rechnungsnr}`,
+        { method: 'DELETE', headers: h });
+    } else {
+      // Rechnungen für diesen Kunden und Zeitraum löschen
+      await fetch(`${_SBURL}/rest/v1/rechnungen?kundennr=eq.${kundennr}&periode_von=eq.${von}&periode_bis=eq.${bis}`,
+        { method: 'DELETE', headers: h });
+    }
+
+    toast(`Periode ${von} – ${bis} zurückgesetzt`, 'success');
+    // Kundendetail neu laden
+    await openKundeDetail(kundennr);
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'error');
   }
 }
 
@@ -3327,7 +3952,7 @@ async function renderKdRechnungen(tankungen, k) {
   // E-Mail-Status aus rechnungen-Tabelle laden
   let emailMap = {}; // rechnungsnr → { email_sent_at, email_empfaenger }
   try {
-    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-999' };
+    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-999' };
     const er = await fetch(
       `${_SBURL}/rest/v1/rechnungen?kundennr=eq.${k.kundennr}&select=rechnungsnr,email_sent_at,email_empfaenger`,
       { headers: h }
@@ -3363,13 +3988,13 @@ async function renderKdRechnungen(tankungen, k) {
     if (t.rechnungsnr) periods[key].rechnungsnrs.add(t.rechnungsnr);
   }
 
-  const SPERRDATUM = '2026-04-15';
   const sorted = Object.values(periods).sort((a,b) => b.von.localeCompare(a.von));
   const gesamtTotal = sorted.reduce((s,p) => s + p.totalPreis, 0);
   document.getElementById('kd-total-label').textContent = `Gesamt: ${fmt(gesamtTotal)} €`;
 
   document.getElementById('kd-rechnungen-tbody').innerHTML = sorted.map((p, i) => {
-    const istAbgerechnet = p.bis <= SPERRDATUM;
+    // abgerechnet wenn mindestens eine Tankung in der Periode als abgerechnet markiert ist
+    const istAbgerechnet = p.items.some(t => t.abgerechnet === true) || p.rechnungsnrs.size > 0;
     const rechnNrs = [...(p.rechnungsnrs || new Set())].filter(Boolean);
     const rechnLabel = rechnNrs.length ? rechnNrs.join(', ') : '';
     const statusBadge = istAbgerechnet
@@ -3402,7 +4027,13 @@ async function renderKdRechnungen(tankungen, k) {
         <button class="btn btn-sm" title="Als PDF herunterladen" style="padding:2px 6px;font-size:13px;"
           onclick="event.stopPropagation();generatePDF(${k.kundennr},'rechnung',{von:'${p.von}',bis:'${p.bis}',fixedRechnungsnr:'${rechnLabel}'})">📥</button>
         <button class="btn btn-sm" title="Per Email versenden" style="padding:2px 6px;font-size:13px;"
-          onclick="event.stopPropagation();sendEmail(${k.kundennr},'${p.von}','${p.bis}','${rechnLabel}')">📧</button>`;
+          onclick="event.stopPropagation();sendEmail(${k.kundennr},'${p.von}','${p.bis}','${rechnLabel}')">📧</button>
+        <button class="btn btn-sm" title="Periode zurücksetzen" style="padding:2px 6px;font-size:13px;color:var(--red);border-color:var(--red);"
+          onclick="event.stopPropagation();periodeZuruecksetzen(${k.kundennr},'${p.von}','${p.bis}','${rechnLabel}')">↩</button>`;
+    } else if (istAbgerechnet && !rechnLabel) {
+      icons = `
+        <button class="btn btn-sm" title="Periode zurücksetzen" style="padding:2px 6px;font-size:13px;color:var(--red);border-color:var(--red);"
+          onclick="event.stopPropagation();periodeZuruecksetzen(${k.kundennr},'${p.von}','${p.bis}','')">↩</button>`;
     } else if (!istAbgerechnet) {
       icons = `
         <button class="btn btn-sm" title="PDF erstellen" style="padding:2px 6px;font-size:13px;"
@@ -3431,7 +4062,7 @@ async function openKdPeriode(von, bis, label, rowEl) {
   if (rowEl) rowEl.style.background = 'var(--bg4)';
 
   try {
-    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                  'Range': '0-9999', 'Prefer': 'return=representation' };
     const res = await fetch(
       `${_SBURL}/rest/v1/tankungen?kundennr=eq.${_kdNr}&hidatum=gte.${von}&hidatum=lte.${bis}&order=hidatum,hizeit`,
@@ -3447,7 +4078,7 @@ async function openKdPeriode(von, bis, label, rowEl) {
     if (!state.data.ausweise || !state.data.ausweise.length) {
       try {
         const ar = await fetch(`${_SBURL}/rest/v1/ausweise?select=*&order=marbnr`, {
-          headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-9999' }
+          headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-9999' }
         });
         state.data.ausweise = await ar.json() || [];
       } catch(e) {}
@@ -3720,10 +4351,16 @@ async function sendEmail(kundennr, von, bis, rechnNr) {
              24326 Ascheberg (Holstein)<br>
              Tel: (0 45 26) - 13 88</p>
         `,
-        attachments: [{
-          filename: `Rechnung_${rechnNr}_${kundennr}.pdf`,
-          content: pdfBase64
-        }]
+        attachments: [
+          {
+            filename: `Rechnung_${rechnNr}_${kundennr}.pdf`,
+            content: pdfBase64
+          },
+          ...(window._pdfXmlBase64 ? [{
+            filename: window._pdfXmlFilename || `factur-x_${rechnNr}.xml`,
+            content: window._pdfXmlBase64
+          }] : [])
+        ]
       })
     });
     const data = await res.json();
@@ -3734,7 +4371,7 @@ async function sendEmail(kundennr, von, bis, rechnNr) {
         try {
           await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${rechnNr}`, {
             method: 'PATCH',
-            headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+            headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                        'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
             body: JSON.stringify({
               email_sent_at: new Date().toISOString(),
@@ -3761,6 +4398,8 @@ function renderKdStamm(k) {
     ? `${o.plz||''} ${o.ortname||''}`.trim() : '—';
   document.getElementById('kd-tel').textContent = k.telefon || o.tel1 || o.tel2 || '—';
   document.getElementById('kd-email').textContent = k.email || '—';
+  const leitwegEl = document.getElementById('kd-leitweg');
+  if (leitwegEl) leitwegEl.textContent = k.leitweg_id || '—';
 
   const fax  = document.getElementById('kd-fax');
   const funk = document.getElementById('kd-funktion');
@@ -3940,43 +4579,75 @@ function filterAusweise() {
 // TANKUNGEN
 // ============================================================
 async function loadTankungen() {
+  // Standardmäßig: laufender Monat
+  const now = new Date();
+  const von = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const bis = now.toISOString().slice(0,10);
+  const vonEl = document.getElementById('tankungen-von');
+  const bisEl = document.getElementById('tankungen-bis');
+  if (vonEl && !vonEl.value) vonEl.value = von;
+  if (bisEl && !bisEl.value) bisEl.value = bis;
+  await filterTankungen();
+}
+
+async function filterTankungen() {
   if (!state.key) return;
-  try {
-    const data = await sbFetch('tankungen?order=hidatum.desc&limit=1000', {
-      headers: { 'Prefer': 'return=representation' }
-    });
-    state.data.tankungen = data || [];
-    renderTankungen();
-  } catch(e) { toast('Fehler beim Laden der Tankungen', 'error'); }
-}
-
-function renderTankungen() {
-  if (!state.data.tankungen.length) { loadTankungen(); return; }
   const tbody = document.getElementById('tankungen-tbody');
-  const data = state.data.tankungen;
-  let sum = 0;
+  tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text3);">Lade…</td></tr>`;
 
-  tbody.innerHTML = data.map(t => {
-    sum += t.hipreis || 0;
-    const art = getZahltyp(null, t.zahltyp);
-    return `<tr>
-      <td class="mono">${t.hidatum || ''}</td>
-      <td class="mono">${t.hibelegnr || ''}</td>
-      <td class="muted">${t.kundennr || 'EC'}</td>
-      <td class="mono">${t.maident || ''}</td>
-      <td>${t.hiartbez || ''}</td>
-      <td class="right mono">${(t.himenge||0).toFixed(2)}</td>
-      <td class="right mono">${(t.hilpreis||0).toFixed(4)}</td>
-      <td class="right mono text-accent">${fmt(t.hipreis)} €</td>
-      <td>${art.badge}</td>
-    </tr>`;
-  }).join('');
+  const q   = (document.getElementById('tankungen-search')?.value || '').trim();
+  const von = document.getElementById('tankungen-von')?.value || '';
+  const bis = document.getElementById('tankungen-bis')?.value || '';
+  const art = document.getElementById('tankungen-art')?.value || '';
 
-  document.getElementById('tankungen-sum').textContent = fmt(sum) + ' €';
-}
+  let params = 'order=hidatum.desc,hizeit.desc&limit=2000';
+  if (von) params += `&hidatum=gte.${von}`;
+  if (bis) params += `&hidatum=lte.${bis}`;
+  if (art) params += `&zahltyp=eq.${art}`;
 
-function filterTankungen() {
-  // Would filter state.data.tankungen — skipping for brevity
+  try {
+    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-1999', 'Prefer': 'return=representation' };
+    const res = await fetch(`${_SBURL}/rest/v1/tankungen?${params}`, { headers: h });
+    let data = await res.json();
+    if (!Array.isArray(data)) { data = []; }
+
+    // Client-seitiger Textfilter (Belegnr, Kundennr)
+    if (q) {
+      data = data.filter(t =>
+        String(t.hibelegnr||'').includes(q) ||
+        String(t.kundennr||'').includes(q) ||
+        String(t.maident||'').includes(q)
+      );
+    }
+
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text3);">Keine Tankungen im gewählten Zeitraum</td></tr>`;
+      document.getElementById('tankungen-sum').textContent = '0,00 €';
+      return;
+    }
+
+    let sum = 0;
+    tbody.innerHTML = data.map(t => {
+      sum += t.hipreis || 0;
+      const art = getZahltyp(null, t.zahltyp);
+      const datum = t.hidatum ? t.hidatum.split('-').reverse().join('.') : '';
+      return `<tr>
+        <td class="mono">${datum}</td>
+        <td class="mono">${t.hibelegnr || ''}</td>
+        <td class="muted">${t.kundennr || 'EC'}</td>
+        <td class="mono">${t.maident || ''}</td>
+        <td>${t.hiartbez || ''}</td>
+        <td class="right mono">${(t.himenge||0).toFixed(2)}</td>
+        <td class="right mono">${(t.hilpreis||0).toFixed(4)}</td>
+        <td class="right mono" style="color:var(--accent);">${fmt(t.hipreis)} €</td>
+        <td>${art.badge}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('tankungen-sum').textContent = fmt(sum) + ' €';
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--red);">Fehler: ${e.message}</td></tr>`;
+  }
 }
 
 // ============================================================
@@ -4043,7 +4714,42 @@ function selectPeriod(von, bis, el) {
 // ============================================================
 // RECHNUNGSLAUF
 // ============================================================
-let _laufData = null; // { von, bis, kunden: {kundennr: {items, total, menge, zahltyp, kunde}} }
+let _laufData = null;
+
+// RCUR-Referenzdaten vom 04.05.2026 (Lastschrifteinzug PmtID2-461465083EX-SEPA)
+const _rcurReferenz = {
+  "Behrens": 53.88, "BIMetryx": 250.06, "Biss": 98.06, "BM-Transporte": 3559.33,
+  "Bull": 85.98, "Casa Nostra": 98.94, "Casa Nova": 1194.88, "Container Service": 447.74,
+  "Dachdeckerei Neumann": 955.16, "Dentaltechnik": 187.75, "DFS Schleiftechnik": 62.12,
+  "Dobbertin Transporte": 4240.62, "Dobbertin-Erdarbeiten": 6179.98, "Doormann": 230.14,
+  "Dr. Ekko": 97.76, "Eckeberg": 117.47, "Elektro-Mohr": 110.17, "Glaserei": 122.42,
+  "glass+": 239.74, "Görling, Fynn": 149.45, "Görling, Kirsten": 207.43,
+  "Grossmann": 21655.18, "Harms": 100.82, "Harmsen": 76.59, "Heiko Noack": 160.03,
+  "Hey, Fabian": 101.70, "Heymann": 94.47, "Hill Fernseh": 111.32, "Hill, Gerold": 103.48,
+  "Hörmann": 81.92, "HYGGEGARTEN": 369.05, "Jalas": 476.97, "Jonge": 94.04,
+  "Bredfeldt": 615.85, "Käßner": 362.25, "Kollath": 81.01, "Kreativ Bau": 539.34,
+  "Kreis Plön": 1530.06, "Kristen-Kurier": 1952.56, "Krüger": 64.84,
+  "Matthias Fengler": 235.04, "Michael Lenser": 1241.48, "Mielke": 39.52,
+  "Minicar": 874.81, "Molck": 210.29, "Möller, Detlef": 82.95, "Molt": 42.68,
+  "Müller, Thomas": 65.10, "Nagel Massivhaus": 356.47, "Noack, Konrad": 40.93,
+  "Noll, Michael": 283.87, "Panholzer": 83.37, "Petersen, Johannes": 5481.07,
+  "Pflanzenkulturen": 176.95, "Pries": 130.41, "Rahlfs": 160.20, "Riefenthaler": 112.35,
+  "Sachau": 73.51, "Schirkowski": 92.17, "Schlösser": 129.15, "Schlüter": 566.95,
+  "Schmidt, Asmus": 93.70, "Schneider, Ulrich": 60.84, "Schnell, Fabian": 490.08,
+  "Schröder Garten": 592.29, "Seniorenausflug": 330.90, "Steffen, Michael": 166.88,
+  "Steuerbüro": 63.00, "Weden": 188.60, "Wiederich": 378.66, "Witt, Kevin": 107.11,
+  "Wittich": 129.03, "WSA electronic": 126.92, "Zimmerei": 775.21
+};
+
+function rcurBetragFuer(name) {
+  if (!name) return null;
+  for (const [key, val] of Object.entries(_rcurReferenz)) {
+    if (name.toLowerCase().includes(key.toLowerCase())) return val;
+  }
+  return null;
+}
+
+ // { von, bis, kunden: {kundennr: {items, total, menge, zahltyp, kunde}} }
 
 function initLaufPeriods() {
   const now = new Date();
@@ -4072,6 +4778,7 @@ function initLaufPeriods() {
 function setLaufPeriod(von, bis) {
   document.getElementById('lauf-von').value = von;
   document.getElementById('lauf-bis').value = bis;
+  document.getElementById('btn-lauf-reset').style.display = 'inline-block';
 }
 
 async function laufLaden() {
@@ -4082,7 +4789,7 @@ async function laufLaden() {
   const warnEl = document.getElementById('lauf-warn');
   warnEl.style.display = 'none';
 
-  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                'Range': '0-99999', 'Prefer': 'return=representation' };
   try {
     const res = await fetch(
@@ -4171,15 +4878,38 @@ async function laufLaden() {
         if (k.kuzart == 1) zahltyp = 'sepa';
         else if (k.kuzart == 2) zahltyp = 'eigen';
         else if (k.kuzart == 3) zahltyp = 'rechnung';
+        // Rabatt: maximaler MATRRAB-Wert über alle Ausweise des Kunden (Cent pro Liter)
+        const kundeAusweise = (state.data.ausweise || []).filter(a => a.kundennr == knr);
+        const rabattCentProLiter = kundeAusweise.reduce((max, a) => Math.max(max, parseFloat(a.rabatt || 0)), 0);
         kunden[knr] = { kundennr: knr, kunde: k, items: [], total: 0, menge: 0,
                         zahltyp, rechnungsnr: null,
                         name: k.name || `KD ${knr}`,
                         email: (k.email || '').trim() || (k.ort?.email || '').trim() || null,
-                        orfunktion: k.ort?.orfunktion || '' };
+                        orfunktion: k.ort?.orfunktion || '',
+                        rabattCentProLiter };
       }
       kunden[knr].items.push(t);
-      kunden[knr].total += t.hipreis || 0;
+      // Integer-Cent-Arithmetik verhindert Float-Rundungsfehler
+      kunden[knr].total += Math.round((t.hipreis || 0) * 100);
       kunden[knr].menge += t.himenge || 0;
+      // Rabatt gilt nur für Diesel
+      if ((t.hiartbez || '').toLowerCase() === 'diesel') {
+        kunden[knr].mengeDiesel = (kunden[knr].mengeDiesel || 0) + (t.himenge || 0);
+      }
+    }
+
+    // Cent → Euro + Rabatt anwenden (MATRRAB = Cent pro Liter, nur auf Diesel)
+    for (const k of Object.values(kunden)) {
+      // Gesamtbetrag von Cent in Euro umrechnen (exakt)
+      k.total = k.total / 100;
+      if (k.rabattCentProLiter > 0 && (k.mengeDiesel || 0) > 0) {
+        // Rabatt nur auf Diesel-Liter
+        const rabattCent = Math.round((k.mengeDiesel || 0) * k.rabattCentProLiter);
+        k.rabattBetrag = rabattCent / 100;
+        k.total = (Math.round(k.total * 100) - rabattCent) / 100;
+      } else {
+        k.rabattBetrag = 0;
+      }
     }
 
     _laufData = { von, bis, kunden };
@@ -4189,7 +4919,7 @@ async function laufLaden() {
     const cnts = { sepa: 0, rechnung: 0, eigen: 0 };
     for (const k of Object.values(kunden)) {
       const typ = k.zahltyp;
-      sums[typ] = (sums[typ] || 0) + k.total;
+      sums[typ] = parseFloat(((sums[typ] || 0) + parseFloat(k.total.toFixed(2))).toFixed(2));
       if (typ !== 'ec') cnts[typ] = (cnts[typ] || 0) + 1;
     }
 
@@ -4197,6 +4927,7 @@ async function laufLaden() {
     document.getElementById('lauf-summen').style.display = 'block';
     document.getElementById('lauf-kunden-container').style.display = 'block';
     document.getElementById('btn-rechnungslauf').style.display = 'block';
+    document.getElementById('btn-sepa-xml').style.display = 'block';
 
     document.getElementById('lauf-sum-sepa').textContent = fmt(sums.sepa) + ' €';
     document.getElementById('lauf-sum-rechnung').textContent = fmt(sums.rechnung) + ' €';
@@ -4218,7 +4949,29 @@ function renderLaufTabelle(typ) {
   const tbody = document.getElementById(`lauf-tbody-${typ}`);
   if (!tbody || !_laufData) return;
 
-  const kunden = Object.values(_laufData.kunden).filter(k => k.zahltyp === typ);
+  const kunden = Object.values(_laufData.kunden)
+    .filter(k => k.zahltyp === typ)
+    .sort((a, b) => {
+      const s = _laufSort[typ] || { col: 'name', dir: 1 };
+      let va, vb;
+      switch (s.col) {
+        case 'name':       va = (a.name||'').toLowerCase(); vb = (b.name||'').toLowerCase(); break;
+        case 'ort':        va = (a.kunde?.ort?.ortname||'').toLowerCase(); vb = (b.kunde?.ort?.ortname||'').toLowerCase(); break;
+        case 'menge':      va = a.menge||0; vb = b.menge||0; break;
+        case 'total':      va = a.total||0; vb = b.total||0; break;
+        case 'rechnungsnr': va = a.rechnungsnr||''; vb = b.rechnungsnr||''; break;
+        case 'rcur':       va = rcurBetragFuer(a.name||'') ?? -Infinity; vb = rcurBetragFuer(b.name||'') ?? -Infinity; break;
+        case 'diff': {
+          const ra = rcurBetragFuer(a.name||''), rb = rcurBetragFuer(b.name||'');
+          va = ra !== null ? parseFloat((a.total - ra).toFixed(2)) : -Infinity;
+          vb = rb !== null ? parseFloat((b.total - rb).toFixed(2)) : -Infinity; break;
+        }
+        default: va = (a.name||'').toLowerCase(); vb = (b.name||'').toLowerCase();
+      }
+      if (va < vb) return -1 * s.dir;
+      if (va > vb) return  1 * s.dir;
+      return 0;
+    });
   if (!kunden.length) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:12px;">Keine ${typ}-Kunden</td></tr>`;
     return;
@@ -4233,12 +4986,29 @@ function renderLaufTabelle(typ) {
     const rechnNr = k.rechnungsnr
       ? `<span class="mono" style="color:var(--green)">${k.rechnungsnr}</span>`
       : '<span style="color:var(--text3)">—</span>';
+
+    // RCUR-Vergleich (nur für SEPA)
+    let rcurCells = '';
+    if (typ === 'sepa') {
+      const rcurBetrag = rcurBetragFuer(k.kunde.name || '');
+      if (rcurBetrag !== null) {
+        const diff = parseFloat((parseFloat(k.total.toFixed(2)) - rcurBetrag).toFixed(2));
+        const diffColor = diff === 0 ? 'var(--green)' : 'var(--red)';
+        const diffStr = diff === 0 ? '✓' : (diff > 0 ? '+' : '') + fmt(diff) + ' €';
+        rcurCells = `<td class="right mono" style="font-size:11px;color:var(--text3)">${fmt(rcurBetrag)} €</td>
+      <td class="right mono" style="font-size:11px;color:${diffColor};font-weight:${diff===0?'normal':'600'}">${diffStr}</td>`;
+      } else {
+        rcurCells = `<td class="right mono" style="font-size:11px;color:var(--text3)">—</td><td></td>`;
+      }
+    }
+
     return `<tr>
       <td><a href="#" onclick="showPage('kunden');openKundeDetail(${k.kundennr});return false;"
          style="color:var(--accent2)">${k.kunde.name || k.kundennr}</a></td>
       ${typ !== 'eigen' ? `<td class="muted" style="font-size:12px;">${ortStr}</td>` : ''}
       <td class="right mono">${fmt(k.menge)} L</td>
-      <td class="right mono" style="color:var(--accent)">${fmt(k.total)} €</td>
+      <td class="right mono" style="color:var(--accent)">${fmt(k.total)} €${k.rabattBetrag > 0 ? `<br><span style="font-size:10px;color:var(--text3)">−${fmt(k.rabattBetrag)} € Rabatt (${k.rabattCentProLiter} ct/L)</span>` : ''}</td>
+      ${typ === 'sepa' ? rcurCells : ''}
       ${typ === 'sepa' ? `<td>${sepaStatus}</td>` : ''}
       <td id="lauf-rechnr-${k.kundennr}">${rechnNr}</td>
       <td><button class="btn btn-sm" id="lauf-pdf-${k.kundennr}"
@@ -4247,11 +5017,111 @@ function renderLaufTabelle(typ) {
   }).join('');
 }
 
+const _laufSort = { sepa: { col: 'name', dir: 1 }, rechnung: { col: 'name', dir: 1 }, eigen: { col: 'name', dir: 1 } };
+
+function sortLaufTabelle(typ, col, thEl) {
+  if (_laufSort[typ].col === col) {
+    _laufSort[typ].dir *= -1;
+  } else {
+    _laufSort[typ].col = col;
+    _laufSort[typ].dir = 1;
+  }
+  thEl.closest('table').querySelectorAll('thead th').forEach(th => th.classList.remove('sort-asc','sort-desc'));
+  thEl.classList.add(_laufSort[typ].dir === 1 ? 'sort-asc' : 'sort-desc');
+  renderLaufTabelle(typ);
+}
+
+async function rechnungslaufZuruecksetzen() {
+  const von = _laufData?.von || document.getElementById('lauf-von')?.value;
+  const bis = _laufData?.bis || document.getElementById('lauf-bis')?.value;
+  if (!von || !bis) { toast('Bitte erst Periode laden', 'error'); return; }
+
+  const h = {
+    'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
+    'Content-Type': 'application/json', 'Prefer': 'return=representation'
+  };
+
+  // Rechnungsnummern direkt aus DB holen (unabhängig vom lokalen State)
+  let vergebeneNummern = [];
+  try {
+    const res = await fetch(
+      `${_SBURL}/rest/v1/rechnungen?periode_von=eq.${von}&periode_bis=eq.${bis}&select=rechnungsnr`,
+      { headers: h }
+    );
+    const data = await res.json();
+    vergebeneNummern = Array.isArray(data) ? data.map(r => r.rechnungsnr).filter(Boolean) : [];
+  } catch(e) {}
+
+  // Auch Tankungen mit periode_von/bis prüfen falls Rechnungen fehlen
+  if (!vergebeneNummern.length) {
+    try {
+      const res = await fetch(
+        `${_SBURL}/rest/v1/tankungen?periode_von=eq.${von}&periode_bis=eq.${bis}&select=rechnungsnr&limit=1`,
+        { headers: h }
+      );
+      const data = await res.json();
+      if (!Array.isArray(data) || !data.length) {
+        toast('Keine abgerechneten Tankungen in dieser Periode gefunden', 'info');
+        return;
+      }
+    } catch(e) {}
+  }
+
+  if (!confirm(
+    `Rechnungslauf für ${von} – ${bis} zurücksetzen?
+
+` +
+    `${vergebeneNummern.length ? vergebeneNummern.length + ' Rechnungen werden gelöscht und ' : ''}` +
+    `alle Tankungen dieser Periode werden wieder auf "offen" gesetzt.`
+  )) return;
+
+  const hw = { ...(h), 'Prefer': 'return=minimal' };
+
+  try {
+    // 1. Tankungen zurücksetzen
+    await fetch(`${_SBURL}/rest/v1/tankungen?periode_von=eq.${von}&periode_bis=eq.${bis}`, {
+      method: 'PATCH', headers: hw,
+      body: JSON.stringify({ abgerechnet: false, rechnungsnr: null, abgerechnet_am: null, periode_von: null, periode_bis: null })
+    });
+
+    if (vergebeneNummern.length) {
+      const nrList = vergebeneNummern.join(',');
+      // 2. Positionen löschen
+      await fetch(`${_SBURL}/rest/v1/rechnung_positionen?rechnungsnr=in.(${nrList})`,
+        { method: 'DELETE', headers: hw });
+      // 3. Rechnungen löschen
+      await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=in.(${nrList})`,
+        { method: 'DELETE', headers: hw });
+    }
+
+    // 4. Lokal zurücksetzen falls _laufData vorhanden
+    if (_laufData) {
+      for (const k of Object.values(_laufData.kunden)) {
+        k.rechnungsnr = null;
+        const el = document.getElementById(`lauf-rechnr-${k.kundennr}`);
+        if (el) el.innerHTML = '<span style="color:var(--text3)">—</span>';
+        const pdfBtn = document.getElementById(`lauf-pdf-${k.kundennr}`);
+        if (pdfBtn) pdfBtn.disabled = true;
+      }
+    }
+
+    document.getElementById('btn-lauf-reset').style.display = 'none';
+    document.getElementById('btn-rechnungslauf').disabled = false;
+    document.getElementById('lauf-progress').style.display = 'none';
+
+    toast(`Periode ${von}–${bis} zurückgesetzt${vergebeneNummern.length ? ' — ' + vergebeneNummern.length + ' Rechnungen gelöscht' : ''}`, 'success');
+  } catch(e) {
+    toast('Fehler beim Zurücksetzen: ' + e.message, 'error');
+  }
+}
+
 async function rechnungslaufStarten() {
   if (!_laufData) return;
-  if (!confirm(`Rechnungslauf für ${_laufData.von} – ${_laufData.bis} starten?\n\nDies vergibt feste Rechnungsnummern und kann nicht rückgängig gemacht werden.`)) return;
+  if (!confirm(`Rechnungslauf für ${_laufData.von} – ${_laufData.bis} starten?\n\nDies vergibt feste Rechnungsnummern. Ein Zurücksetzen ist über den ↩-Button möglich.`)) return;
 
-  const kunden = Object.values(_laufData.kunden).filter(k => k.zahltyp !== 'ec' && !k.rechnungsnr);
+  const kunden = Object.values(_laufData.kunden)
+    .filter(k => k.zahltyp !== 'ec' && !k.rechnungsnr)
+    .sort((a, b) => a.kundennr - b.kundennr);  // Rechnungsnummern nach Kundennummer vergeben
   if (!kunden.length) { toast('Alle Kunden haben bereits eine Rechnungsnummer', 'success'); return; }
 
   // Fortschritt anzeigen
@@ -4264,7 +5134,7 @@ async function rechnungslaufStarten() {
   // Nächste Rechnungsnummer
   let nextNr = await getNextRechnungsnr();
 
-  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
 
   // Ausweis-Lookup für Snapshot (aktuelle Daten einfrieren)
@@ -4286,12 +5156,12 @@ async function rechnungslaufStarten() {
     const kundenadresse = kunde.strasse || ort.strasse || '';
     const kundenort = ort.plz ? `${ort.plz} ${ort.ortname}` : (ort.ortname || '');
 
-    // Summen berechnen
-    const totalBrutto = k.items.reduce((s,t) => s + (t.hipreis||0), 0);
+    // Summen aus _laufData verwenden (exakte Cent-Arithmetik + Rabatt bereits berechnet)
+    const totalBetrag = k.total;  // nach Rabatt, aus laufLaden
     const totalMenge  = k.items.reduce((s,t) => s + (t.himenge||0), 0);
     const mwstSatz    = k.items.find(t => t.mwst_satz > 0)?.mwst_satz ?? FIRMA.mwst;
-    const netto       = totalBrutto / (1 + mwstSatz / 100);
-    const mwstBetrag  = totalBrutto - netto;
+    const netto       = totalBetrag / (1 + mwstSatz / 100);
+    const mwstBetrag  = totalBetrag - netto;
 
     // 1. Rechnung mit vollständigem Kunden-Snapshot speichern
     await fetch(`${_SBURL}/rest/v1/rechnungen?on_conflict=rechnungsnr`, {
@@ -4304,7 +5174,7 @@ async function rechnungslaufStarten() {
         kundenort,
         periode_von: _laufData.von,
         periode_bis: _laufData.bis,
-        betrag: Math.round(totalBrutto * 100) / 100,
+        betrag: Math.round(totalBetrag * 100) / 100,
         betrag_netto: Math.round(netto * 100) / 100,
         mwst_betrag: Math.round(mwstBetrag * 100) / 100,
         mwst_satz: mwstSatz,
@@ -4361,6 +5231,7 @@ async function rechnungslaufStarten() {
     if (el) el.innerHTML = `<span class="mono" style="color:var(--green)">${rNr}</span>`;
     const pdfBtn = document.getElementById(`lauf-pdf-${k.kundennr}`);
     if (pdfBtn) pdfBtn.disabled = false;
+    document.getElementById('btn-lauf-reset').style.display = 'inline-block';
 
     done++;
   }
@@ -4437,7 +5308,16 @@ async function laufPDF(kundennr) {
   if (!k?.rechnungsnr) { toast('Erst Rechnungslauf starten', 'error'); return; }
   // Lade Kunden falls nötig
   if (!state.data.kunden.length) await loadKunden();
-  await generatePDF(kundennr, 'rechnung', { von: _laufData.von, bis: _laufData.bis, fixedRechnungsnr: k.rechnungsnr });
+  // fixedBetrag übergibt den exakt berechneten Betrag aus dem Rechnungslauf
+  // damit PDF und SEPA-Datei immer identisch sind
+  await generatePDF(kundennr, 'rechnung', {
+    von: _laufData.von,
+    bis: _laufData.bis,
+    fixedRechnungsnr: k.rechnungsnr,
+    fixedBrutto: k.total,
+    fixedRabattBetrag: k.rabattBetrag || 0,
+    fixedRabattCentProLiter: k.rabattCentProLiter || 0
+  });
 }
 
 async function generateAbrechnung() {
@@ -4534,28 +5414,67 @@ function getKundeName(nr) {
 // ============================================================
 // SEPA pain.008 XML Export
 // ============================================================
-function exportSEPA() {
-  const data = state.abrData;
-  if (!data) { toast('Erst Abrechnung erstellen', 'error'); return; }
+async function exportSEPA() {
+  // Verwendet _laufData — gleiche Beträge wie Rechnung und Rechnungslauf-Tabelle
+  if (!_laufData) { toast('Erst Kunden laden', 'error'); return; }
 
   const cfg = JSON.parse(localStorage.getItem('cfg') || '{}');
   if (!cfg.glid || !cfg.iban) { toast('Bitte SEPA-Daten in Einstellungen hinterlegen', 'error'); return; }
 
-  const groups = Object.values(data.groups.sepa);
-  if (!groups.length) { toast('Keine SEPA-Buchungen', 'info'); return; }
+  // Nur SEPA-Kunden mit hinterlegtem Mandat
+  const sepaKunden = Object.values(_laufData.kunden)
+    .filter(k => k.zahltyp === 'sepa');
+  if (!sepaKunden.length) { toast('Keine SEPA-Buchungen', 'info'); return; }
+
+  // ── Vorab-Validierung ──────────────────────────────────────────
+  const fehler = [];
+  const warnungen = [];
+
+  for (const k of sepaKunden) {
+    const mandate = state.data.sepa.find(m => m.kundennr === k.kundennr);
+    if (!mandate) {
+      fehler.push(`❌ ${k.name}: Kein SEPA-Mandat hinterlegt`);
+      continue;
+    }
+    if (!mandate.iban)               fehler.push(`❌ ${k.name}: IBAN fehlt`);
+    if (!mandate.bic)                warnungen.push(`⚠ ${k.name}: BIC fehlt`);
+    if (!mandate.mandatsreferenz)    fehler.push(`❌ ${k.name}: Mandatsreferenz fehlt`);
+    if (!mandate.erteilungsdatum)    fehler.push(`❌ ${k.name}: Mandatsdatum fehlt`);
+    if (!mandate.kontoinhaber)       warnungen.push(`⚠ ${k.name}: Kontoinhaber fehlt`);
+    if (!k.rechnungsnr)              warnungen.push(`⚠ ${k.name}: Keine Rechnungsnummer — Rechnungslauf starten?`);
+    if (!(k.total > 0))              fehler.push(`❌ ${k.name}: Betrag ist 0 oder ungültig`);
+  }
+
+  if (!cfg.bic)  warnungen.push(`⚠ Firmen-BIC in Einstellungen fehlt`);
+  if (!cfg.firma) warnungen.push(`⚠ Firmenname in Einstellungen fehlt`);
+
+  if (fehler.length || warnungen.length) {
+    const lines = [...fehler, ...(warnungen.length ? ['', ...warnungen] : [])].join('\n');
+    const msg = fehler.length
+      ? `SEPA-Export nicht möglich — bitte Fehler beheben:\n\n${lines}`
+      : `SEPA-Export mit Warnungen:\n\n${lines}\n\nTrotzdem fortfahren?`;
+    if (fehler.length) { alert(msg); return; }
+    if (!confirm(msg)) return;
+  }
+  // ── Ende Validierung ────────────────────────────────────────────
 
   const msgId = `RGSE${Date.now()}`;
   const now = new Date().toISOString().slice(0,19);
-  const colDate = addDays(data.bis, 2);
-  const total = fmt(data.sums.sepa);
-  const count = groups.length;
+  const colDate = addDays(_laufData.bis, 2);
 
-  const txns = groups.map(g => {
-    const mandate = state.data.sepa.find(m => m.kundennr === g.kundennr);
+  // Mandate laden (bereits in state.data.sepa)
+  const sepaGroups = sepaKunden.filter(k => state.data.sepa.find(m => m.kundennr === k.kundennr));
+  // Kontrollsumme: exakte Beträge aus Rechnungslauf
+  const total = sepaGroups.reduce((sum, k) => sum + k.total, 0).toFixed(2);
+  const count = sepaGroups.length;
+
+  const txns = sepaKunden.map(k => {
+    const mandate = state.data.sepa.find(m => m.kundennr === k.kundennr);
     if (!mandate) return '';
+    // k.total ist der exakte Betrag aus dem Rechnungslauf (mit Rabatt, Cent-Arithmetik)
     return `      <DrctDbtTxInf>
-        <PmtId><EndToEndId>RGSE${g.kundennr}${data.von}</EndToEndId></PmtId>
-        <InstdAmt Ccy="EUR">${g.total.toFixed(2)}</InstdAmt>
+        <PmtId><EndToEndId>RGSE${k.kundennr}${_laufData.von}</EndToEndId></PmtId>
+        <InstdAmt Ccy="EUR">${k.total.toFixed(2)}</InstdAmt>
         <DrctDbtTx>
           <MndtRltdInf>
             <MndtId>${mandate.mandatsreferenz}</MndtId>
@@ -4563,9 +5482,9 @@ function exportSEPA() {
           </MndtRltdInf>
         </DrctDbtTx>
         <DbtrAgt><FinInstnId><BIC>${mandate.bic}</BIC></FinInstnId></DbtrAgt>
-        <Dbtr><Nm>${mandate.kontoinhaber}</Nm></Dbtr>
-        <DbtrAcct><Id><IBAN>${mandate.iban.replace(/\s/g,'')}</IBAN></Id></DbtrAcct>
-        <RmtInf><Ustrd>Kraftstoff ${data.von} bis ${data.bis}</Ustrd></RmtInf>
+        <Dbtr><Nm>${k.name}</Nm></Dbtr>
+        <DbtrAcct><Id><IBAN>${(mandate.iban||'').replace(/\s/g,'')}</IBAN></Id></DbtrAcct>
+        <RmtInf><Ustrd>Kraftstoff ${_laufData.von} bis ${_laufData.bis}</Ustrd></RmtInf>
       </DrctDbtTxInf>`;
   }).filter(Boolean).join('\n');
 
@@ -4599,8 +5518,56 @@ ${txns}
   </CstmrDrctDbtInitn>
 </Document>`;
 
-  download(`sepa_${data.von}_${data.bis}.xml`, xml, 'application/xml');
-  toast('SEPA pain.008 XML exportiert', 'success');
+  const dateiname = `sepa_${_laufData.von}_${_laufData.bis}`;
+
+  // Kontrollbeleg TXT generieren
+  const colDateDE = new Date(colDate).toLocaleDateString('de-DE', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+  const pad = (s, n) => String(s).padEnd(n);
+  const padL = (s, n) => String(s).padStart(n);
+  let txt = '';
+  txt += `Lastschrifteinzug RCUR ${msgId} vom ${new Date().toLocaleDateString('de-DE')}; Ausführungsdatum: ${colDateDE}\n\n`;
+  txt += `${'NR'.padEnd(6)}${'NAME (Zahlungs-Pflicht./Empf.)'.padEnd(52)}${'Manda'.padEnd(8)}${'IBAN'.padEnd(26)}Betrag\n`;
+  txt += '*'.repeat(140) + '\n';
+  let nr = 1; let summe = 0;
+  sepaKunden.forEach(k => {
+    const mandate = state.data.sepa.find(m => m.kundennr === k.kundennr);
+    if (!mandate) return;
+    const ibanFmt = (mandate.iban||'').replace(/\s/g,'').replace(/(\w{4})/g,'$1 ').trim();
+    const betrag = k.total.toFixed(2).replace('.',',');
+    const rechnNr = k.rechnungsnr ? `RECHNUNG NR ${k.rechnungsnr} vom ${new Date().toLocaleDateString('de-DE')}` : '';
+    txt += `${padL(nr,6)} ${pad(k.name,52)}${pad(mandate.mandatsreferenz||'',8)}${pad(ibanFmt,26)}EUR ${padL(betrag,10)}  ${rechnNr}\n`;
+    summe += k.total; nr++;
+  });
+  txt += '*'.repeat(140) + '\n';
+  txt += `${'Summe:'.padEnd(96)}EUR ${padL(summe.toFixed(2).replace('.',','),10)}\n`;
+
+  // Ordner auswählen — beide Dateien landen im selben Verzeichnis
+  if (window.showDirectoryPicker) {
+    try {
+      const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+
+      const xmlHandle = await dir.getFileHandle(`${dateiname}.xml`, { create: true });
+      const xmlWriter = await xmlHandle.createWritable();
+      await xmlWriter.write(xml);
+      await xmlWriter.close();
+
+      const txtHandle = await dir.getFileHandle(`${dateiname}.txt`, { create: true });
+      const txtWriter = await txtHandle.createWritable();
+      await txtWriter.write(txt);
+      await txtWriter.close();
+
+      toast(`SEPA XML + Kontrollbeleg gespeichert in: ${dir.name}`, 'success');
+    } catch(e) {
+      if (e.name !== 'AbortError') {
+        toast('Fehler beim Speichern: ' + e.message, 'error');
+      }
+    }
+  } else {
+    // Fallback für Browser ohne Directory Picker API
+    download(`${dateiname}.xml`, xml, 'application/xml');
+    download(`${dateiname}.txt`, txt, 'text/plain');
+    toast('SEPA XML + Kontrollbeleg in Downloads gespeichert', 'success');
+  }
 }
 
 function addDays(dateStr, days) {
@@ -4645,23 +5612,69 @@ function renderSepaMandateTable(mandate) {
   }
   tbody.innerHTML = mandate.map(m => `<tr>
     <td class="mono">${m.mandatsreferenz}</td>
-    <td>${m.kunden?.name || m.kundennr}</td>
+    <td>${fixDbfUmlauts(m.kunden?.name || '') || m.kundennr}</td>
     <td class="mono">${ibanDisplay(m.iban)}</td>
     <td class="mono">${m.bic || ''}</td>
-    <td>${m.kontoinhaber || ''}</td>
+    <td>${fixDbfUmlauts(m.kontoinhaber || '')}</td>
     <td class="mono">${m.erteilungsdatum || ''}</td>
     <td><span class="badge ${m.aktiv ? 'badge-sepa' : 'badge-ec'}">${m.aktiv ? 'Aktiv' : 'Inaktiv'}</span></td>
-    <td><button class="btn btn-sm" onclick="deleteMandat(${m.id})">Löschen</button></td>
+    <td style="display:flex;gap:6px;">
+      <button class="btn btn-sm" onclick="editMandat(${m.id})" style="border-color:var(--blue);color:var(--blue);">Bearbeiten</button>
+      <button class="btn btn-sm" onclick="deleteMandat(${m.id})">Löschen</button>
+    </td>
   </tr>`).join('');
 }
 
+// ID des aktuell bearbeiteten Mandats (null = neues Mandat)
+let _editMandatId = null;
+
 function openSepaNeu(kundennr) {
+  _editMandatId = null;
+  document.querySelector('#modal-sepa .modal-title').textContent = 'Neues SEPA-Mandat';
   const sel = document.getElementById('sepa-kunde-select');
   sel.innerHTML = state.data.kunden.map(k =>
     `<option value="${k.kundennr}" ${k.kundennr == kundennr ? 'selected' : ''}>${k.kundennr} – ${k.name}</option>`
   ).join('');
   document.getElementById('sepa-datum').value = new Date().toISOString().slice(0,10);
   document.getElementById('sepa-ref').value = '';
+  document.getElementById('sepa-name').value = '';
+  document.getElementById('sepa-iban').value = '';
+  document.getElementById('sepa-bic').value = '';
+  document.getElementById('modal-sepa').classList.add('show');
+}
+
+function editMandatDirekt() {
+  // Bearbeiten direkt aus Kunden-Detail (sepa-Objekt im Cache)
+  const m = window._currentSepaMandat;
+  if (!m) { toast('Mandat nicht gefunden', 'error'); return; }
+  _editMandatId = m.id;
+  document.querySelector('#modal-sepa .modal-title').textContent = 'SEPA-Mandat bearbeiten';
+  const sel = document.getElementById('sepa-kunde-select');
+  sel.innerHTML = state.data.kunden.map(k =>
+    `<option value="${k.kundennr}" ${k.kundennr == m.kundennr ? 'selected' : ''}>${k.kundennr} – ${k.name}</option>`
+  ).join('');
+  document.getElementById('sepa-ref').value   = m.mandatsreferenz || '';
+  document.getElementById('sepa-name').value  = state.data.kunden.find(k => k.kundennr == m.kundennr)?.name || m.kontoinhaber || '';
+  document.getElementById('sepa-iban').value  = m.iban || '';
+  document.getElementById('sepa-bic').value   = m.bic || '';
+  document.getElementById('sepa-datum').value = m.erteilungsdatum || '';
+  document.getElementById('modal-sepa').classList.add('show');
+}
+
+function editMandat(id) {
+  const m = state.data.sepa.find(x => x.id === id);
+  if (!m) return;
+  _editMandatId = id;
+  document.querySelector('#modal-sepa .modal-title').textContent = 'SEPA-Mandat bearbeiten';
+  const sel = document.getElementById('sepa-kunde-select');
+  sel.innerHTML = state.data.kunden.map(k =>
+    `<option value="${k.kundennr}" ${k.kundennr == m.kundennr ? 'selected' : ''}>${k.kundennr} – ${k.name}</option>`
+  ).join('');
+  document.getElementById('sepa-ref').value = m.mandatsreferenz || '';
+  document.getElementById('sepa-name').value = state.data.kunden.find(k => k.kundennr == m.kundennr)?.name || m.kontoinhaber || '';
+  document.getElementById('sepa-iban').value = m.iban || '';
+  document.getElementById('sepa-bic').value = m.bic || '';
+  document.getElementById('sepa-datum').value = m.erteilungsdatum || '';
   document.getElementById('modal-sepa').classList.add('show');
 }
 
@@ -4679,9 +5692,20 @@ async function saveSepaMandat() {
   if (!row.iban || !row.bic) { toast('IBAN und BIC sind Pflichtfelder', 'error'); return; }
 
   try {
-    await upsertBatch('sepa_mandate', [row], 'mandatsreferenz');
+    if (_editMandatId) {
+      // Update existierendes Mandat per PATCH
+      await sbFetch(`sepa_mandate?id=eq.${_editMandatId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(row),
+        headers: { 'Prefer': 'return=representation' }
+      });
+      toast('Mandat aktualisiert', 'success');
+    } else {
+      await upsertBatch('sepa_mandate', [row], 'mandatsreferenz');
+      toast('Mandat gespeichert', 'success');
+    }
+    _editMandatId = null;
     closeModal('modal-sepa');
-    toast('Mandat gespeichert', 'success');
     loadSepaMandate();
   } catch(e) { toast('Fehler: ' + e.message, 'error'); }
 }
@@ -4693,6 +5717,36 @@ async function deleteMandat(id) {
     toast('Mandat gelöscht', 'success');
     loadSepaMandate();
   } catch(e) { toast('Fehler', 'error'); }
+}
+
+// ============================================================
+// LEITWEG-ID (XRechnung fuer Behoerdenkunden)
+// ============================================================
+function kdEditLeitweg() {
+  const k = state.data.kunden.find(k => k.kundennr == _kdNr);
+  document.getElementById('leitweg-input').value = k?.leitweg_id || '';
+  document.getElementById('modal-leitweg').classList.add('show');
+}
+
+async function saveLeitwegId() {
+  const val = document.getElementById('leitweg-input').value.trim();
+  if (!_kdNr) { toast('Kein Kunde ausgewählt', 'error'); return; }
+  try {
+    await sbFetch(`kunden?kundennr=eq.${_kdNr}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ leitweg_id: val || null }),
+      headers: { 'Prefer': 'return=minimal' }
+    });
+    // State aktualisieren
+    const k = state.data.kunden.find(k => k.kundennr == _kdNr);
+    if (k) k.leitweg_id = val || null;
+    const el = document.getElementById('kd-leitweg');
+    if (el) el.textContent = val || '—';
+    closeModal('modal-leitweg');
+    toast(val ? `Leitweg-ID gespeichert → XRechnung aktiv` : 'Leitweg-ID entfernt → ZUGFeRD aktiv', 'success');
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'error');
+  }
 }
 
 // ============================================================
@@ -4708,7 +5762,7 @@ async function refreshDashboard() {
       const r = await fetch(`${_SBURL}/rest/v1/${table}?select=id`, {
         headers: {
           'apikey': _SBKEY,
-          'Authorization': 'Bearer ' + _SBKEY,
+          'Authorization': 'Bearer ' + _BEARER,
           'Prefer': 'count=exact',
           'Range': '0-0'
         }
@@ -4907,10 +5961,18 @@ function renderTop25() {
 
 function openKundeByNr(nr) {
   showPage('kunden', document.querySelector('.nav-item[onclick*="kunden"]'));
-  setTimeout(() => {
+  // Warten bis Kundenliste geladen ist, dann Detail öffnen
+  const tryOpen = (attempts) => {
     const k = state.data.kunden?.find(c => c.kundennr == nr);
-    if (k) showKundenDetail(k);
-  }, 100);
+    if (k) {
+      openKundeDetail(nr);
+      const detail = document.getElementById('kunden-detail');
+      if (detail) setTimeout(() => detail.scrollTop = 0, 300);
+    } else if (attempts > 0) {
+      setTimeout(() => tryOpen(attempts - 1), 200);
+    }
+  };
+  setTimeout(() => tryOpen(20), 100);
 }
 
 // ============================================================
@@ -4967,6 +6029,49 @@ function download(filename, content, mime) {
   URL.revokeObjectURL(url);
 }
 
+function showRlsSQL() {
+  const sql = `-- ============================================================
+-- RLS (Row Level Security) für Tankstellenabrechnung
+-- Einmalig im Supabase SQL-Editor ausführen
+-- Danach: Supabase Dashboard → Authentication → Users → Nutzer anlegen
+-- ============================================================
+
+-- 1. RLS auf allen Tabellen aktivieren
+alter table kunden         enable row level security;
+alter table ort            enable row level security;
+alter table ausweise       enable row level security;
+alter table tankungen      enable row level security;
+alter table sepa_mandate   enable row level security;
+alter table rechnungen     enable row level security;
+alter table rechnung_positionen enable row level security;
+alter table fahrzeuge      enable row level security;
+alter table ek_preise      enable row level security;
+alter table ek_preise add column if not exists ek_preis_adblue numeric(8,4);
+
+-- 2. Policies: nur eingeloggte User dürfen alles lesen und schreiben
+-- (gilt für alle Nutzer die du unter Authentication → Users anlegst)
+
+do $$ declare t text; begin
+  foreach t in array array[
+    'kunden','ort','ausweise','tankungen','sepa_mandate',
+    'rechnungen','rechnung_positionen','fahrzeuge','ek_preise'
+  ] loop
+    execute format('
+      create policy "Authenticated users full access" on %I
+      for all to authenticated
+      using (true)
+      with check (true);
+    ', t);
+  end loop;
+end $$;
+
+-- 3. Anon-Zugriff komplett sperren (kein select ohne Login möglich)
+-- (keine anon-policy = kein Zugriff)
+
+-- Fertig! Jetzt unter Authentication → Users einen Nutzer anlegen.`;
+  showSchemaSQL(sql);
+}
+
 function showMigrationSQL() {
   const sql = `-- Migration: neue Felder für Tel/Fax/Bank/Email + Abrechnungslogik
 -- Im Supabase SQL-Editor ausführen, dann Re-Import starten
@@ -4993,6 +6098,22 @@ alter table tankungen add column if not exists mwst_satz numeric(5,2);
 
 -- PIN aus CARD.DBF
 alter table ausweise add column if not exists pin text;
+alter table ausweise add column if not exists rabatt numeric(5,2) default 0;
+create table if not exists rechnung_positionen (
+  id serial primary key,
+  rechnungsnr text references rechnungen(rechnungsnr) on delete cascade,
+  maident integer,
+  bezeichnung text,
+  hidatum date,
+  hizeit time,
+  himenge numeric(10,3),
+  hilpreis numeric(8,4),
+  hipreis numeric(10,2),
+  hiartbez text,
+  created_at timestamptz default now()
+);
+alter table rechnung_positionen enable row level security;
+create policy if not exists "auth rechnung_positionen" on rechnung_positionen for all to authenticated using (true) with check (true);
 alter table tankungen add column if not exists ausweis_nr integer;
 alter table tankungen add column if not exists ausweis_bezeichnung text;
 
@@ -5026,7 +6147,7 @@ async function fixKundennr() {
   const EC_MAAWNR = [19, 502, 505, 507, 508, 530];
   const ecMaidents = EC_MAAWNR.map(nr => maawnrToMaident[nr]).filter(Boolean);
 
-  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
 
   // Schritt 1: EC-MAIDENTs auf zahltyp=ec setzen
@@ -5079,7 +6200,7 @@ async function fixProduktNamen() {
         method: 'PATCH',
         headers: {
           'apikey': _SBKEY,
-          'Authorization': 'Bearer ' + _SBKEY,
+          'Authorization': 'Bearer ' + _BEARER,
           'Content-Type': 'application/json',
           'Prefer': 'return=minimal',
           'Range': '0-99999'
@@ -5161,14 +6282,14 @@ async function exportAllPDF(tab) {
 // ============================================================
 async function getNextRechnungsnr() {
   try {
-    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-0' };
+    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-0' };
     // Alle rechnungsnr laden und numerisches Maximum finden
     const r2 = await fetch(
       `${_SBURL}/rest/v1/tankungen?select=rechnungsnr&rechnungsnr=not.is.null`,
-      { headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-99999' } }
+      { headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-99999' } }
     );
     const d2 = await r2.json();
-    let maxNr = 24754;
+    let maxNr = 24758;
     if (Array.isArray(d2)) {
       for (const row of d2) {
         const n = parseInt(row.rechnungsnr);
@@ -5188,15 +6309,174 @@ async function getNextRechnungsnr() {
     logImport && logImport(`[PDF] Letzte Rechnungsnr: ${maxNr} → nächste: ${maxNr + 1}`);
     return maxNr + 1;
   } catch(e) {
-    const fallback = parseInt(localStorage.getItem('last_rechnungsnr') || '24754');
+    const fallback = parseInt(localStorage.getItem('last_rechnungsnr') || '24758');
     return fallback + 1;
   }
+}
+
+
+// ============================================================
+// ZUGFeRD / XRechnung XML Generator (EN 16931 / Factur-X 1.0)
+// ============================================================
+function generateZUGFeRDXml(opts) {
+  const {
+    rechnungsnr, rechnungsdatum, von, bis,
+    kundennr, kundeName, kundeStrasse, kundeOrt,
+    positionen,          // Array: { beschreibung, menge, einheit, einzelpreis, gesamtpreis }
+    nettogesamt, mwstSatz, mwstBetrag, bruttogesamt,
+    leitwegId            // optional, nur fuer XRechnung
+  } = opts;
+
+  const mwstProzent = mwstSatz.toFixed(2);
+  const fmtBetrag = n => parseFloat(n).toFixed(2);
+  const fmtMwst   = n => parseFloat(n).toFixed(2);
+  const heute = rechnungsdatum; // YYYY-MM-DD
+
+  // Zahlungsziel: 14 Tage
+  const faelligDatum = (() => {
+    const d = new Date(heute);
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0,10);
+  })();
+
+  const profileId = leitwegId
+    ? 'urn:cen.eu:en16931:2017#compliant#urn:xoev-de:kosit:standard:xrechnung_2.3'
+    : 'urn:cen.eu:en16931:2017#conformant#urn:factur-x.eu:1p0:en16931';
+  const profileName = leitwegId ? 'XRechnung' : 'EN 16931';
+
+  const linien = positionen.map((p, i) => `
+    <ram:IncludedSupplyChainTradeLineItem>
+      <ram:AssociatedDocumentLineDocument>
+        <ram:LineID>${i + 1}</ram:LineID>
+      </ram:AssociatedDocumentLineDocument>
+      <ram:SpecifiedTradeProduct>
+        <ram:Name>${escXml(p.beschreibung)}</ram:Name>
+      </ram:SpecifiedTradeProduct>
+      <ram:SpecifiedLineTradeAgreement>
+        <ram:NetPriceProductTradePrice>
+          <ram:ChargeAmount>${fmtBetrag(p.einzelpreis)}</ram:ChargeAmount>
+          <ram:BasisQuantity unitCode="${escXml(p.einheit || 'LTR')}">1</ram:BasisQuantity>
+        </ram:NetPriceProductTradePrice>
+      </ram:SpecifiedLineTradeAgreement>
+      <ram:SpecifiedLineTradeDelivery>
+        <ram:BilledQuantity unitCode="${escXml(p.einheit || 'LTR')}">${fmtBetrag(p.menge)}</ram:BilledQuantity>
+      </ram:SpecifiedLineTradeDelivery>
+      <ram:SpecifiedLineTradeSettlement>
+        <ram:ApplicableTradeTax>
+          <ram:TypeCode>VAT</ram:TypeCode>
+          <ram:CategoryCode>S</ram:CategoryCode>
+          <ram:RateApplicablePercent>${mwstProzent}</ram:RateApplicablePercent>
+        </ram:ApplicableTradeTax>
+        <ram:SpecifiedTradeSettlementLineMonetarySummation>
+          <ram:LineTotalAmount>${fmtBetrag(p.gesamtpreis)}</ram:LineTotalAmount>
+        </ram:SpecifiedTradeSettlementLineMonetarySummation>
+      </ram:SpecifiedLineTradeSettlement>
+    </ram:IncludedSupplyChainTradeLineItem>`).join('');
+
+  const leitwegBlock = leitwegId
+    ? `<ram:ReceivingAdviceReferencedDocument>
+        <ram:IssuerAssignedID>${escXml(leitwegId)}</ram:IssuerAssignedID>
+      </ram:ReceivingAdviceReferencedDocument>` : '';
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rsm:CrossIndustryInvoice
+  xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
+  xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
+  xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100"
+  xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100">
+
+  <rsm:ExchangedDocumentContext>
+    <ram:GuidelineSpecifiedDocumentContextParameter>
+      <ram:ID>${profileId}</ram:ID>
+    </ram:GuidelineSpecifiedDocumentContextParameter>
+  </rsm:ExchangedDocumentContext>
+
+  <rsm:ExchangedDocument>
+    <ram:ID>${escXml(String(rechnungsnr))}</ram:ID>
+    <ram:TypeCode>380</ram:TypeCode>
+    <ram:IssueDateTime>
+      <udt:DateTimeString format="102">${heute.replace(/-/g,'')}</udt:DateTimeString>
+    </ram:IssueDateTime>
+  </rsm:ExchangedDocument>
+
+  <rsm:SupplyChainTradeTransaction>
+${linien}
+    <ram:ApplicableHeaderTradeAgreement>
+      <ram:SellerTradeParty>
+        <ram:Name>${escXml(FIRMA.name)}</ram:Name>
+        <ram:PostalTradeAddress>
+          <ram:LineOne>${escXml(FIRMA.strasse)}</ram:LineOne>
+          <ram:CityName>Ascheberg</ram:CityName>
+          <ram:PostcodeCode>24326</ram:PostcodeCode>
+          <ram:CountryID>DE</ram:CountryID>
+        </ram:PostalTradeAddress>
+        <ram:SpecifiedTaxRegistration>
+          <ram:ID schemeID="VA">${escXml(FIRMA.egid.replace('EG-ID: ','DE'))}</ram:ID>
+        </ram:SpecifiedTaxRegistration>
+      </ram:SellerTradeParty>
+      <ram:BuyerTradeParty>
+        <ram:ID>${escXml(String(kundennr))}</ram:ID>
+        <ram:Name>${escXml(kundeName)}</ram:Name>
+        <ram:PostalTradeAddress>
+          <ram:LineOne>${escXml(kundeStrasse)}</ram:LineOne>
+          <ram:CityName>${escXml(kundeOrt)}</ram:CityName>
+          <ram:CountryID>DE</ram:CountryID>
+        </ram:PostalTradeAddress>
+      </ram:BuyerTradeParty>
+      <ram:BuyerOrderReferencedDocument>
+        <ram:IssuerAssignedID>${escXml(String(rechnungsnr))}</ram:IssuerAssignedID>
+      </ram:BuyerOrderReferencedDocument>
+    </ram:ApplicableHeaderTradeAgreement>
+
+    <ram:ApplicableHeaderTradeDelivery>
+      <ram:ActualDeliverySupplyChainEvent>
+        <ram:OccurrenceDateTime>
+          <udt:DateTimeString format="102">${bis.replace(/-/g,'')}</udt:DateTimeString>
+        </ram:OccurrenceDateTime>
+      </ram:ActualDeliverySupplyChainEvent>
+    </ram:ApplicableHeaderTradeDelivery>
+
+    <ram:ApplicableHeaderTradeSettlement>
+      <ram:PaymentReference>${escXml(String(rechnungsnr))}</ram:PaymentReference>
+      <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
+      ${leitwegBlock}
+      <ram:SpecifiedTradePaymentTerms>
+        <ram:DueDateDateTime>
+          <udt:DateTimeString format="102">${faelligDatum.replace(/-/g,'')}</udt:DateTimeString>
+        </ram:DueDateDateTime>
+      </ram:SpecifiedTradePaymentTerms>
+      <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
+        <ram:LineTotalAmount>${fmtBetrag(nettogesamt)}</ram:LineTotalAmount>
+        <ram:TaxBasisTotalAmount>${fmtBetrag(nettogesamt)}</ram:TaxBasisTotalAmount>
+        <ram:TaxTotalAmount currencyID="EUR">${fmtMwst(mwstBetrag)}</ram:TaxTotalAmount>
+        <ram:GrandTotalAmount>${fmtBetrag(bruttogesamt)}</ram:GrandTotalAmount>
+        <ram:DuePayableAmount>${fmtBetrag(bruttogesamt)}</ram:DuePayableAmount>
+      </ram:SpecifiedTradeSettlementHeaderMonetarySummation>
+      <ram:ApplicableTradeTax>
+        <ram:CalculatedAmount>${fmtMwst(mwstBetrag)}</ram:CalculatedAmount>
+        <ram:TypeCode>VAT</ram:TypeCode>
+        <ram:BasisAmount>${fmtBetrag(nettogesamt)}</ram:BasisAmount>
+        <ram:CategoryCode>S</ram:CategoryCode>
+        <ram:RateApplicablePercent>${mwstProzent}</ram:RateApplicablePercent>
+      </ram:ApplicableTradeTax>
+    </ram:ApplicableHeaderTradeSettlement>
+  </rsm:SupplyChainTradeTransaction>
+</rsm:CrossIndustryInvoice>`;
+}
+
+function escXml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 async function generatePDF(kundennr, typ, periode) {
   if (!window.jspdf) { toast('jsPDF nicht geladen', 'error'); return; }
 
-  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-9999', 'Prefer': 'return=representation' };
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-9999', 'Prefer': 'return=representation' };
   const von = periode?.von || state.abrData?.von;
   const bis = periode?.bis || state.abrData?.bis;
   if (!von || !bis) { toast('Periode nicht angegeben', 'error'); return; }
@@ -5273,7 +6553,7 @@ async function generatePDF(kundennr, typ, periode) {
     if (!state.data.ausweise || !state.data.ausweise.length) {
       try {
         const ar = await fetch(`${_SBURL}/rest/v1/ausweise?select=*&order=marbnr`, {
-          headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-9999' }
+          headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-9999' }
         });
         state.data.ausweise = await ar.json() || [];
       } catch(e) {}
@@ -5314,10 +6594,22 @@ async function generatePDF(kundennr, typ, periode) {
     kundeOrt     = ort.plz ? `${ort.plz}  ${ort.ortname}` : '';
   }
 
-  const totalBrutto = tankungen.reduce((s,t) => s + (t.hipreis||0), 0);
   const totalMenge  = tankungen.reduce((s,t) => s + (t.himenge||0), 0);
   // MwSt-Satz: aus Tankungsdaten (historisch korrekt), Fallback auf FIRMA.mwst
   const mwstSatz = tankungen.find(t => t.mwst_satz > 0)?.mwst_satz ?? FIRMA.mwst;
+
+  // Wenn aus dem Rechnungslauf aufgerufen: exakten Betrag verwenden (identisch mit SEPA)
+  // Sonst: neu aus Tankungen summieren (Cent-Arithmetik)
+  const totalBruttoVorRabatt = periode?.fixedBrutto != null && (periode?.fixedRabattBetrag || 0) === 0
+    ? periode.fixedBrutto  // kein Rabatt: fixedBrutto ist bereits der Endbetrag
+    : periode?.fixedBrutto != null
+      ? parseFloat((periode.fixedBrutto + (periode.fixedRabattBetrag || 0)).toFixed(2))  // mit Rabatt: Brutto vor Rabatt
+      : Math.round(tankungen.reduce((s,t) => s + Math.round((t.hipreis||0)*100), 0)) / 100;
+
+  const totalBrutto = periode?.fixedBrutto != null
+    ? periode.fixedBrutto   // exakter Betrag aus Rechnungslauf (nach Rabatt)
+    : totalBruttoVorRabatt;
+
   const netto = totalBrutto / (1 + mwstSatz / 100);
   const mwstBetrag = totalBrutto - netto;
 
@@ -5514,11 +6806,34 @@ async function generatePDF(kundennr, typ, periode) {
   doc.setLineWidth(0.3); doc.setDrawColor(0);
   doc.line(C.produkt, y, mr, y); y += 5;
 
+  // Rabatt aus Kundendaten (über ausweise)
+  // Rabatt: aus Rechnungslauf (exakt) oder neu berechnen
+  const rabattCentProLiter = periode?.fixedRabattCentProLiter != null
+    ? periode.fixedRabattCentProLiter
+    : (state.data.ausweise || []).filter(a => a.kundennr == kundennr)
+        .reduce((max, a) => Math.max(max, parseFloat(a.rabatt || 0)), 0);
+  // Rabatt nur auf Diesel-Liter
+  const mengeDieselPDF = tankungen.reduce((s,t) => (t.hiartbez||'').toLowerCase() === 'diesel' ? s + (t.himenge||0) : s, 0);
+  const rabattBetrag = periode?.fixedRabattBetrag != null
+    ? periode.fixedRabattBetrag
+    : rabattCentProLiter > 0 ? parseFloat((mengeDieselPDF * rabattCentProLiter / 100).toFixed(2)) : 0;
+
+  // Für die Summen-Darstellung im PDF
+  const bruttoVorRabatt = rabattBetrag > 0
+    ? parseFloat((totalBrutto + rabattBetrag).toFixed(2))
+    : totalBrutto;
+  const nettoNachRabatt = totalBrutto / (1 + mwstSatz / 100);
+  const mwstNachRabatt  = totalBrutto - nettoNachRabatt;
+
   const totRows = [
     ['Total Liter',           fmtMenge(totalMenge) + ' Ltr.', false],
-    [mwstSatz + ' % MwSt.', fmtEuro(mwstBetrag),            false],
-    ['Total Netto',           fmtEuro(netto),                  false],
-    ['Total Brutto',          fmtEuro(totalBrutto),            true ]
+    ...(rabattBetrag > 0 ? [
+      ['Zwischensumme',       fmtEuro(bruttoVorRabatt),        false],
+      [`Rabatt ${rabattCentProLiter} ct/L`, '- ' + fmtEuro(rabattBetrag), false],
+    ] : []),
+    [mwstSatz + ' % MwSt.', fmtEuro(mwstNachRabatt),          false],
+    ['Total Netto',           fmtEuro(nettoNachRabatt),         false],
+    ['Total Brutto',          fmtEuro(totalBrutto),             true ]
   ];
   for (const [label, val, bold] of totRows) {
     doc.setFont('helvetica', bold ? 'bold' : 'normal');
@@ -5547,7 +6862,11 @@ async function generatePDF(kundennr, typ, periode) {
     doc.setFontSize(7.5);
     doc.setTextColor(60,60,60);
     const sepaLine1 = `Der Rechnungsbetrag wird von Ihrem Konto abgebucht:`;
-    const sepaLine2 = `${sepaMandat.kontoinhaber || kundeName}   IBAN: ${sepaMandat.iban}   BIC: ${sepaMandat.bic || ''}`;
+    const rawIban = (sepaMandat.iban || '').replace(/\s/g, '');
+    const maskedIban = rawIban.length > 8
+      ? rawIban.slice(0, 4) + '×'.repeat(rawIban.length - 8) + rawIban.slice(-4)
+      : rawIban;
+    const sepaLine2 = `${sepaMandat.kontoinhaber || kundeName}   IBAN: ${maskedIban}   BIC: ${sepaMandat.bic || ''}`;
     doc.text(sepaLine1, ml, y);
     doc.text(sepaLine2, ml, y + 4);
   }
@@ -5566,8 +6885,47 @@ async function generatePDF(kundennr, typ, periode) {
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
   } else if (window._pdfEmailMode) {
-    // Base64 für Email-Anhang
+    // Base64 fuer Email-Anhang (PDF)
     window._pdfEmailBase64 = doc.output('datauristring').split(',')[1];
+    // ZUGFeRD / XRechnung XML generieren
+    try {
+      // Positionen aufbereiten: pro Ausweis-Gruppe eine Zeile
+      const xmlPositionen = Object.values(byAusweis).map(aw => {
+        const totalMengeAw = aw.items.reduce((s,t) => s + (t.himenge||0), 0);
+        const totalPreisAw = aw.items.reduce((s,t) => s + (t.hipreis||0), 0);
+        const avgLpreis = totalMengeAw > 0 ? totalPreisAw / totalMengeAw : 0;
+        const prod = aw.items[0]?.hiartbez || 'Kraftstoff';
+        return {
+          beschreibung: `${prod} - ${aw.bezeichnung}`,
+          menge: parseFloat(totalMengeAw.toFixed(3)),
+          einheit: 'LTR',
+          einzelpreis: parseFloat(avgLpreis.toFixed(4)),
+          gesamtpreis: parseFloat(totalPreisAw.toFixed(2))
+        };
+      });
+      // Leitweg-ID vom Kunden (falls vorhanden)
+      const kundeObj = state.data.kunden.find(k => k.kundennr == kundennr);
+      const leitwegId = kundeObj?.leitweg_id || null;
+      const xmlStr = generateZUGFeRDXml({
+        rechnungsnr: rNr,
+        rechnungsdatum: new Date().toISOString().slice(0,10),
+        von, bis,
+        kundennr, kundeName, kundeStrasse, kundeOrt,
+        positionen: xmlPositionen,
+        nettogesamt: parseFloat(netto.toFixed(2)),
+        mwstSatz: mwstSatz,
+        mwstBetrag: parseFloat(mwstBetrag.toFixed(2)),
+        bruttogesamt: parseFloat(totalBrutto.toFixed(2)),
+        leitwegId
+      });
+      window._pdfXmlBase64  = btoa(unescape(encodeURIComponent(xmlStr)));
+      window._pdfXmlFilename = leitwegId
+        ? `xrechnung_${rNr}.xml`
+        : `factur-x_${rNr}.xml`;
+    } catch(xmlErr) {
+      console.error('[ZUGFeRD] XML-Fehler:', xmlErr);
+      window._pdfXmlBase64 = null;
+    }
   } else {
     doc.save(fname);
   }
@@ -5625,7 +6983,7 @@ async function loadFahrzeuge() {
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">Lade...</td></tr>';
   try {
     const res = await fetch(`${_SBURL}/rest/v1/fahrzeuge?select=*&order=kostenstelle,kennzeichen`, {
-      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-999' }
+      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-999' }
     });
     const data = await res.json();
     if (!Array.isArray(data) || !data.length) {
@@ -5667,7 +7025,7 @@ async function saveFahrzeug() {
     typ:                document.getElementById('fz-typ').value.trim() || null,
     dazugehoeriges_fzg: parseInt(document.getElementById('fz-dazugehoeriges').value) || null,
   };
-  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
   try {
     if (id) {
@@ -5684,7 +7042,7 @@ async function saveFahrzeug() {
 
 async function deleteFahrzeug(id) {
   if (!confirm('Fahrzeug wirklich löschen?')) return;
-  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY };
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER };
   await fetch(`${_SBURL}/rest/v1/fahrzeuge?id=eq.${id}`, { method: 'DELETE', headers: h });
   toast('Fahrzeug gelöscht', 'success');
   loadFahrzeuge();
@@ -5702,7 +7060,7 @@ async function loadEkPreise() {
   tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px;">Lade...</td></tr>';
   try {
     const res = await fetch(`${_SBURL}/rest/v1/ek_preise?select=*&order=jahr.desc,monat.desc`, {
-      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-999' }
+      headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-999' }
     });
     const data = await res.json();
     if (!Array.isArray(data) || !data.length) {
@@ -5712,7 +7070,8 @@ async function loadEkPreise() {
     tbody.innerHTML = data.map(e => `<tr>
       <td class="mono">${e.jahr}</td>
       <td>${MONATE[e.monat] || e.monat}</td>
-      <td class="mono" style="color:var(--accent);">${parseFloat(e.ek_preis).toFixed(3).replace('.', ',')} €</td>
+      <td class="mono" style="color:var(--accent);">${e.ek_preis ? parseFloat(e.ek_preis).toFixed(3).replace('.', ',') + ' €' : '—'}</td>
+      <td class="mono" style="color:var(--blue);">${e.ek_preis_adblue ? parseFloat(e.ek_preis_adblue).toFixed(3).replace('.', ',') + ' €' : '—'}</td>
       <td class="muted" style="font-size:11px;">${e.created_at ? new Date(e.created_at).toLocaleDateString('de') : '—'}</td>
       <td style="text-align:right;white-space:nowrap;">
         <button class="btn btn-sm" onclick="openEkModal(${JSON.stringify(e).replace(/"/g,'&quot;')})">Bearbeiten</button>
@@ -5728,18 +7087,21 @@ function openEkModal(e) {
   document.getElementById('ek-jahr').value = e?.jahr || now.getFullYear();
   document.getElementById('ek-monat').value = e?.monat || (now.getMonth() + 1);
   document.getElementById('ek-preis').value = e?.ek_preis ? parseFloat(e.ek_preis).toFixed(3) : '';
+  document.getElementById('ek-preis-adblue').value = e?.ek_preis_adblue ? parseFloat(e.ek_preis_adblue).toFixed(3) : '';
   document.getElementById('modal-ek').classList.add('show');
 }
 
 async function saveEkPreis() {
   const id = document.getElementById('ek-id').value;
+  const abRaw = document.getElementById('ek-preis-adblue').value.replace(',', '.');
   const data = {
-    jahr:     parseInt(document.getElementById('ek-jahr').value),
-    monat:    parseInt(document.getElementById('ek-monat').value),
-    ek_preis: parseFloat(document.getElementById('ek-preis').value.replace(',', '.')),
+    jahr:            parseInt(document.getElementById('ek-jahr').value),
+    monat:           parseInt(document.getElementById('ek-monat').value),
+    ek_preis:        parseFloat(document.getElementById('ek-preis').value.replace(',', '.')),
+    ek_preis_adblue: abRaw ? parseFloat(abRaw) : null,
   };
   if (!data.jahr || !data.monat || isNaN(data.ek_preis)) { toast('Bitte alle Felder ausfüllen', 'error'); return; }
-  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY,
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
   try {
     if (id) {
@@ -5756,7 +7118,7 @@ async function saveEkPreis() {
 async function deleteEkPreis(id) {
   if (!confirm('EK-Preis wirklich löschen?')) return;
   await fetch(`${_SBURL}/rest/v1/ek_preise?id=eq.${id}`, {
-    method: 'DELETE', headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY }
+    method: 'DELETE', headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER }
   });
   toast('EK-Preis gelöscht', 'success');
   loadEkPreise();
@@ -5779,9 +7141,22 @@ async function initEigenverbrauch() {
 
 async function eigenverbrauchLaden() {
   if (!state.key) { toast('Nicht verbunden', 'error'); return; }
+  const btn = document.getElementById('btn-ev-laden');
+  btn.textContent = 'Lade…'; btn.disabled = true;
+  try {
+    await _eigenverbrauchLadenInner();
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'error');
+    console.error('[EV] Fehler:', e);
+  } finally {
+    btn.textContent = 'Auswertung laden'; btn.disabled = false;
+  }
+}
+
+async function _eigenverbrauchLadenInner() {
   const monat = parseInt(document.getElementById('ev-monat').value);
   const jahr  = parseInt(document.getElementById('ev-jahr').value);
-  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _SBKEY, 'Range': '0-9999', 'Prefer': 'return=representation' };
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-9999', 'Prefer': 'return=representation' };
 
   // EK-Preis für diesen Monat laden
   let ekPreis = null;
@@ -5807,47 +7182,50 @@ async function eigenverbrauchLaden() {
   }
   console.log('[EV] Fahrzeuge geladen:', fahrzeuge.length, fahrzeuge.map(f => ({ id: f.id, kennzeichen: f.kennzeichen, awsnr: f.awsnr })));
 
-  // Ausweise (MARB_TAB) laden: maident + maawnr (= AWS-Nummer des Fahrzeugs)
-  // Verknüpfung: tankungen.maident → ausweise.maident → ausweise.maawnr = fahrzeuge.awsnr
-  const auswRes = await fetch(`${_SBURL}/rest/v1/ausweise?select=maident,maawnr&limit=5000`, { headers: h });
+  // Ausweise laden: maident + marbnr (marbnr = MAAWNR = sichtbare Ausweisnummer = fahrzeuge.awsnr)
+  // Verknüpfung: fahrzeug.awsnr → ausweise.marbnr → ausweise.maident → tankungen.maident
+  const auswRes = await fetch(`${_SBURL}/rest/v1/ausweise?select=maident,marbnr&limit=5000`, { headers: h });
   const ausweise = await auswRes.json();
-  console.log('[EV] Ausweise geladen:', (ausweise||[]).length, 'Beispiel:', (ausweise||[]).slice(0,3));
+  if (!Array.isArray(ausweise)) throw new Error('Ausweise konnten nicht geladen werden: ' + JSON.stringify(ausweise));
+  console.log('[EV] Ausweise geladen:', ausweise.length, 'Beispiel:', ausweise.slice(0,3));
 
-  // maawnr → maident  (für Fahrzeug-Lookup: fahrzeug.awsnr → maident)
-  const awsnrToMaident = {};
-  for (const a of (ausweise || [])) {
-    if (a.maident == null || a.maawnr == null) continue;
-    awsnrToMaident[String(a.maawnr)] = String(a.maident);
-  }
-  console.log('[EV] awsnrToMaident (erste 5):', Object.entries(awsnrToMaident).slice(0,5));
-
-  // Tankungen für diesen Monat + zahltyp=eigen laden
   const vonStr = `${jahr}-${String(monat).padStart(2,'0')}-01`;
   const bisStr = `${jahr}-${String(monat).padStart(2,'0')}-${String(new Date(jahr,monat,0).getDate()).padStart(2,'0')}`;
+
+  // Alle awsnr (=marbnr=sichtbare Ausweisnummer) der Fahrzeuge sammeln
+  const fahrzeugAwsnrs = fahrzeuge.map(f => f.awsnr).filter(v => v != null);
+  console.log('[EV] Fahrzeug-awsnrs:', fahrzeugAwsnrs);
+
+  if (!fahrzeugAwsnrs.length) {
+    toast('Keine Ausweisnummern bei Fahrzeugen hinterlegt', 'error');
+    document.getElementById('ev-result-card').style.display = 'none';
+    document.getElementById('btn-ev-pdf').style.display = 'none';
+    return;
+  }
+
+  // Tankungen nach ausweis_nr (=marbnr) filtern, nur Diesel (DK)
   const tankRes = await fetch(
-    `${_SBURL}/rest/v1/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&zahltyp=eq.eigen&select=maident,himenge,hipreis`,
+    `${_SBURL}/rest/v1/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&ausweis_nr=in.(${fahrzeugAwsnrs.join(',')})&hiartbez=eq.Diesel&select=ausweis_nr,himenge,hipreis`,
     { headers: h }
   );
   const tankungen = await tankRes.json();
-  console.log('[EV] Tankungen eigen im Zeitraum:', (tankungen||[]).length, 'Beispiel:', (tankungen||[]).slice(0,3));
+  console.log('[EV] Tankungen (Diesel, nach ausweis_nr) im Zeitraum:', (tankungen||[]).length, 'Beispiel:', (tankungen||[]).slice(0,3));
 
-  // Menge pro maident summieren
-  const mengeByMaident = {};
+  // Menge pro ausweis_nr summieren
+  const mengeByAwsnr = {};
   for (const t of (tankungen || [])) {
-    const mid = String(t.maident);
-    mengeByMaident[mid] = (mengeByMaident[mid] || 0) + (parseFloat(t.himenge) || 0);
+    const key = String(t.ausweis_nr);
+    mengeByAwsnr[key] = (mengeByAwsnr[key] || 0) + (parseFloat(t.himenge) || 0);
   }
-  console.log('[EV] mengeByMaident:', mengeByMaident);
+  console.log('[EV] mengeByAwsnr:', mengeByAwsnr);
 
-  // Fahrzeuge mit Mengen verknüpfen
-  // Weg: fahrzeug.awsnr → awsnrToMaident → maident → mengeByMaident
+  // Fahrzeuge mit Mengen verknüpfen direkt über awsnr
   const rows = fahrzeuge.map(f => {
-    const awsnrStr = f.awsnr != null ? String(f.awsnr) : null;
-    const maident  = awsnrStr ? awsnrToMaident[awsnrStr] : undefined;
-    const menge    = maident  ? (mengeByMaident[maident] || 0) : 0;
-    const euro     = ekPreis  ? menge * ekPreis : null;
-    console.log(`[EV] ${f.kennzeichen} awsnr=${f.awsnr} → maident=${maident} → menge=${menge}`);
-    return { ...f, menge, euro, maident };
+    const key   = f.awsnr != null ? String(f.awsnr) : null;
+    const menge = key ? (mengeByAwsnr[key] || 0) : 0;
+    const euro  = ekPreis ? menge * ekPreis : null;
+    console.log(`[EV] ${f.kennzeichen} awsnr=${f.awsnr} → menge=${menge}`);
+    return { ...f, menge, euro };
   }).filter(f => f.menge > 0);
 
   if (!rows.length) {
@@ -5865,15 +7243,23 @@ async function eigenverbrauchLaden() {
   // Sortieren nach Kostenstelle
   rows.sort((a,b) => (a.kostenstelle||999) - (b.kostenstelle||999));
 
-  const gesamtMenge = rows.reduce((s,r) => s + r.menge, 0);
-  const gesamtEuro  = ekPreis ? rows.reduce((s,r) => s + (r.euro||0), 0) : null;
+  // 5% Aufschlag auf Menge und Euro (Anzeige & PDF)
+  const AUFSCHLAG = 1.10;
+  const rowsAnz = rows.map(r => ({
+    ...r,
+    menge: r.menge * AUFSCHLAG,
+    euro:  r.euro != null ? r.euro * AUFSCHLAG : null
+  }));
 
-  document.getElementById('ev-result-title').textContent = `Eigenverbrauch ${MONATE[monat]} ${jahr} — ${rows.length} Fahrzeuge`;
+  const gesamtMenge = rowsAnz.reduce((s,r) => s + r.menge, 0);
+  const gesamtEuro  = ekPreis ? rowsAnz.reduce((s,r) => s + (r.euro||0), 0) : null;
+
+  document.getElementById('ev-result-title').textContent = `Eigenverbrauch ${MONATE[monat]} ${jahr} — ${rows.length} Fahrzeuge (inkl. 10% Aufschlag)`;
   document.getElementById('ev-gesamt-euro').textContent = gesamtEuro != null
     ? `${fmtMenge(gesamtMenge)} Ltr. / ${fmtEuro(gesamtEuro)}`
     : `${fmtMenge(gesamtMenge)} Ltr.`;
 
-  document.getElementById('ev-tbody').innerHTML = rows.map(r => `<tr>
+  document.getElementById('ev-tbody').innerHTML = rowsAnz.map(r => `<tr>
     <td class="mono">${r.kostenstelle ?? '—'}</td>
     <td style="font-weight:500;">${r.kennzeichen || '—'}</td>
     <td class="mono">${r.awsnr ?? '—'}</td>
@@ -5886,8 +7272,8 @@ async function eigenverbrauchLaden() {
   document.getElementById('ev-result-card').style.display = 'block';
   document.getElementById('btn-ev-pdf').style.display = '';
 
-  // Daten für PDF merken
-  window._evData = { rows, monat, jahr, ekPreis, gesamtMenge, gesamtEuro };
+  // Daten für PDF merken (mit Aufschlag)
+  window._evData = { rows: rowsAnz, monat, jahr, ekPreis, gesamtMenge, gesamtEuro };
   toast(`${rows.length} Fahrzeuge mit Verbrauch geladen`, 'success');
 }
 
@@ -6029,12 +7415,523 @@ async function eigenverbrauchPDF() {
   drawFooter(pageNum, pageNum);
 
   // Rückwärts durch die Seiten und Seitenzahl korrigieren falls mehrere Seiten
-  doc.save(`Eigenverbrauch_${jahr}_${String(monat).padStart(2,'0')}.pdf`);
+  // PDF im neuen Tab öffnen statt herunterladen
+  const pdfBlob = doc.output('blob');
+  const pdfUrl = URL.createObjectURL(pdfBlob);
+  window.open(pdfUrl, '_blank');
+}
+
+// ============================================================
+// HIA KOMPLETT-REIMPORT (ignoriert Datumfilter, upsert alle Sätze)
+// ============================================================
+async function reimportMarbErzwingen() {
+  if (!state.dbfRaw.marb) { toast('Bitte zuerst Ordner laden', 'error'); return; }
+  const btn = document.getElementById('btn-reimport-marb');
+  btn.disabled = true; btn.textContent = '⏳ Importiere...';
+  // Timestamp löschen damit Skip-Check umgangen wird
+  localStorage.removeItem('marb_last_import');
+  try {
+    const raw = state.dbfRaw.marb;
+    await importAusweise(raw.records, null); // null = kein lastModified → kein Skip
+    toast('MARB erfolgreich re-importiert (inkl. Rabatt)', 'success');
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.textContent = '⟳ MARB Neu importieren';
+}
+
+async function reimportHiaKomplett() {
+  if (!state.dbfRaw.hia?.records?.length) {
+    toast('Bitte zuerst HIA.DBF laden', 'error'); return;
+  }
+  if (!confirm(`Achtung: Alle ${state.dbfRaw.hia.records.length.toLocaleString('de')} Tankungen werden komplett neu eingelesen. Fortfahren?`)) return;
+
+  const btn = document.getElementById('btn-reimport-hia');
+  btn.disabled = true; btn.textContent = 'Importiere…';
+
+  // lastDate in localStorage löschen damit importTankungen alles einliest
+  localStorage.removeItem('hia_last_import');
+
+  // importTankungen aufrufen ohne lastModified → kein Datums-Skip
+  logImport('[HIA-KOMPLETT] Starte Komplett-Reimport (Datumfilter deaktiviert)...');
+  try {
+    await importTankungen(state.dbfRaw.hia.records, null, true);
+    logImport('[HIA-KOMPLETT] ✓ Komplett-Reimport abgeschlossen');
+    toast('Komplett-Reimport abgeschlossen', 'success');
+    window._kundenLetztesTankdatum = null; // Umsatz-Cache zurücksetzen
+  } catch(e) {
+    logImport(`[HIA-KOMPLETT] Fehler: ${e.message}`);
+    toast('Fehler: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.textContent = '⟳ HIA Komplett-Reimport';
+}
+
+
+async function eigenverbrauchAdBlueLaden() {
+  if (!state.key) { toast('Nicht verbunden', 'error'); return; }
+  const btn = document.getElementById('btn-evab-laden');
+  btn.textContent = 'Lade…'; btn.disabled = true;
+  try {
+    await _evAdBlueLadenInner();
+  } catch(e) {
+    toast('Fehler: ' + e.message, 'error');
+    console.error('[EVAB] Fehler:', e);
+  } finally {
+    btn.textContent = 'Auswertung laden'; btn.disabled = false;
+  }
+}
+
+async function _evAdBlueLadenInner() {
+  const monat = parseInt(document.getElementById('evab-monat').value);
+  const jahr  = parseInt(document.getElementById('evab-jahr').value);
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-9999', 'Prefer': 'return=representation' };
+
+  // EK-Preis Ad Blue für diesen Monat laden
+  let ekPreis = null;
+  try {
+    const ekRes = await fetch(`${_SBURL}/rest/v1/ek_preise?jahr=eq.${jahr}&monat=eq.${monat}&limit=1`, { headers: h });
+    const ekData = await ekRes.json();
+    ekPreis = Array.isArray(ekData) && ekData[0]?.ek_preis_adblue ? parseFloat(ekData[0].ek_preis_adblue) : null;
+  } catch(e) {}
+
+  const ekInfo = document.getElementById('evab-ek-info');
+  if (!ekPreis) {
+    ekInfo.innerHTML = `<span style="color:var(--red);">⚠ Kein Ad Blue EK-Preis für ${MONATE[monat]} ${jahr} — bitte unter "EK-Preise" eintragen</span>`;
+  } else {
+    ekInfo.innerHTML = `EK Ad Blue: <span style="color:var(--blue);font-family:var(--mono);font-weight:600;">${ekPreis.toFixed(3).replace('.',',')} €/Ltr.</span>`;
+  }
+
+  // Fahrzeuge laden
+  const fzRes = await fetch(`${_SBURL}/rest/v1/fahrzeuge?select=*&order=kostenstelle,kennzeichen`, { headers: h });
+  const fahrzeuge = await fzRes.json();
+  if (!Array.isArray(fahrzeuge) || !fahrzeuge.length) {
+    toast('Keine Fahrzeuge eingetragen', 'error'); return;
+  }
+
+  const fahrzeugAwsnrs = fahrzeuge.map(f => f.awsnr).filter(v => v != null);
+  const vonStr = `${jahr}-${String(monat).padStart(2,'0')}-01`;
+  const bisStr = `${jahr}-${String(monat).padStart(2,'0')}-${String(new Date(jahr,monat,0).getDate()).padStart(2,'0')}`;
+
+  // Nur Ad Blue Tankungen
+  const tankRes = await fetch(
+    `${_SBURL}/rest/v1/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&ausweis_nr=in.(${fahrzeugAwsnrs.join(',')})&hiartbez=eq.Ad Blue&select=ausweis_nr,himenge,hipreis`,
+    { headers: h }
+  );
+  const tankungen = await tankRes.json();
+  if (!Array.isArray(tankungen)) throw new Error('Tankungen konnten nicht geladen werden');
+
+  const mengeByAwsnr = {};
+  for (const t of tankungen) {
+    const key = String(t.ausweis_nr);
+    mengeByAwsnr[key] = (mengeByAwsnr[key] || 0) + (parseFloat(t.himenge) || 0);
+  }
+
+  const AUFSCHLAG = 1.10;
+  const rows = fahrzeuge.map(f => {
+    const key   = f.awsnr != null ? String(f.awsnr) : null;
+    const menge = (key ? (mengeByAwsnr[key] || 0) : 0) * AUFSCHLAG;
+    const euro  = ekPreis ? menge * ekPreis : null;
+    return { ...f, menge, euro };
+  }).filter(f => f.menge > 0);
+
+  rows.sort((a,b) => (a.kostenstelle||999) - (b.kostenstelle||999));
+
+  if (!rows.length) {
+    toast(`Kein Ad Blue Eigenverbrauch im ${MONATE[monat]} ${jahr} gefunden`, 'info');
+    document.getElementById('evab-result-card').style.display = 'none';
+    document.getElementById('btn-evab-pdf').style.display = 'none';
+    return;
+  }
+
+  const gesamtMenge = rows.reduce((s,r) => s + r.menge, 0);
+  const gesamtEuro  = ekPreis ? rows.reduce((s,r) => s + (r.euro||0), 0) : null;
+
+  document.getElementById('evab-result-title').textContent = `Eigenverbrauch Ad Blue ${MONATE[monat]} ${jahr} — ${rows.length} Fahrzeuge (inkl. 10% Aufschlag)`;
+  document.getElementById('evab-gesamt-euro').textContent = gesamtEuro != null
+    ? `${fmtMenge(gesamtMenge)} Ltr. / ${fmtEuro(gesamtEuro)}`
+    : `${fmtMenge(gesamtMenge)} Ltr.`;
+
+  document.getElementById('evab-tbody').innerHTML = rows.map(r => `<tr>
+    <td class="mono">${r.kostenstelle ?? '—'}</td>
+    <td style="font-weight:500;">${r.kennzeichen || '—'}</td>
+    <td class="mono">${r.awsnr ?? '—'}</td>
+    <td class="muted">${r.typ || '—'}</td>
+    <td class="right mono">${fmtMenge(r.menge)}</td>
+    <td class="right mono">${ekPreis ? ekPreis.toFixed(3).replace('.',',') + ' €' : '—'}</td>
+    <td class="right mono" style="color:var(--blue);">${r.euro != null ? fmtEuro(r.euro) : '—'}</td>
+  </tr>`).join('');
+
+  document.getElementById('evab-result-card').style.display = 'block';
+  document.getElementById('btn-evab-pdf').style.display = '';
+  window._evabData = { rows, monat, jahr, ekPreis, gesamtMenge, gesamtEuro };
+  toast(`${rows.length} Fahrzeuge mit Ad Blue Verbrauch geladen`, 'success');
+}
+
+async function eigenverbrauchAdBluePDF() {
+  if (!window._evabData) return;
+  if (!window.jspdf) { toast('jsPDF nicht geladen', 'error'); return; }
+  const { rows, monat, jahr, ekPreis, gesamtMenge, gesamtEuro } = window._evabData;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const ml = 15, mr = 200, H = 297;
+  let pageNum = 1;
+
+  const C = { id: ml, kennz: ml+14, schluessel: ml+52, ks: ml+68, menge: ml+80, ek: ml+118, betrag: ml+145, pct: mr };
+
+  function drawHeader() {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(0,0,0);
+    doc.text(`Eigenverbrauch Ad Blue   ${monat}   ${jahr}`, ml, 20);
+    doc.setLineWidth(0.8); doc.setDrawColor(0); doc.line(ml, 23, mr, 23);
+    let y = 30;
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+    doc.text('ID', C.id, y); doc.text('Kennzeichen', C.kennz, y);
+    doc.text('Schlüssel:', C.schluessel, y); doc.text('KS:', C.ks, y);
+    doc.text('Menge in Ltr.', C.menge, y); doc.text('EK:', C.ek, y);
+    doc.text('Menge in EK', C.betrag, y); doc.text('% von Gesamt', C.pct, y, { align:'right' });
+    doc.setLineWidth(0.3); doc.line(ml, y+2, mr, y+2);
+    return y + 8;
+  }
+
+  function drawFooter(pn, total) {
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(0,0,0);
+    doc.setLineWidth(0.5); doc.line(ml, H-18, mr, H-18);
+    const now = new Date();
+    const wt = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+    const mo = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+    doc.text(`${wt[now.getDay()]}, ${now.getDate()}. ${mo[now.getMonth()]} ${now.getFullYear()}`, ml, H-12);
+    doc.text(`SEITE ${pn} VON ${total}`, mr, H-12, { align:'right' });
+  }
+
+  let y = drawHeader();
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const pct = gesamtMenge > 0 ? (r.menge/gesamtMenge*100).toFixed(2).replace('.',',')+'%' : '—';
+    if (y > H-35) { drawFooter(pageNum,'?'); doc.addPage(); pageNum++; y = drawHeader(); }
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(0,0,0);
+    doc.text(String(r.id??''), C.id, y);
+    doc.text(r.kennzeichen||'—', C.kennz, y);
+    doc.text(String(r.awsnr??'—'), C.schluessel, y);
+    doc.text(String(r.kostenstelle??'0'), C.ks, y);
+    doc.text(fmtMenge(r.menge)+' Ltr.', C.menge, y);
+    doc.text(ekPreis ? ekPreis.toFixed(2).replace('.',',')+' €' : '—', C.ek, y);
+    doc.text(r.euro != null ? fmtEuro(r.euro)+' €' : '—', C.betrag, y);
+    doc.setTextColor(80,80,80);
+    doc.text(pct, C.pct, y+4.5, { align:'right' });
+    doc.setTextColor(0,0,0);
+    doc.setLineWidth(0.2); doc.setDrawColor(180,180,180);
+    doc.line(ml, y+6, mr, y+6); doc.setDrawColor(0);
+    y += 11;
+  }
+
+  if (y > H-45) { drawFooter(pageNum,'?'); doc.addPage(); pageNum++; y = 20; }
+  doc.setLineWidth(0.6); doc.line(ml, y, mr, y); y += 6;
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0,0,0);
+  doc.text('Gesamtsumme', C.kennz, y);
+  doc.text(fmtMenge(gesamtMenge)+' Ltr.', C.menge, y);
+  doc.text(gesamtEuro != null ? fmtEuro(gesamtEuro)+'€' : '—', C.betrag, y);
+  doc.setLineWidth(0.6); doc.line(ml, y+2, mr, y+2);
+  drawFooter(pageNum, pageNum);
+
+  const pdfBlob = doc.output('blob');
+  const pdfUrl = URL.createObjectURL(pdfBlob);
+  window.open(pdfUrl, '_blank');
 }
 
 // ============================================================
 // INIT
 // ============================================================
+// ============================================================
+// RECHNUNGEN PAGE
+// ============================================================
+let _rechnungenAll = [];
+let _rechnungenSort = { col: 'rechnungsnr', dir: -1 };
+
+async function rechnungenLaden() {
+  if (!state.key) { toast('Nicht verbunden', 'error'); return; }
+  document.getElementById('rech-tbody').innerHTML =
+    '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text3);">Lade …</td></tr>';
+  try {
+    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER };
+    const pageSize = 1000;
+
+    // Hilfsfunktion: alle Seiten laden
+    async function fetchAll(path) {
+      let all = [], offset = 0;
+      while (true) {
+        const sep = path.includes('?') ? '&' : '?';
+        const res = await fetch(
+          `${_SBURL}/rest/v1/${path}${sep}limit=${pageSize}&offset=${offset}`,
+          { headers: { ...h, 'Range': `${offset}-${offset+pageSize-1}` } }
+        );
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < pageSize) break;
+        offset += pageSize;
+      }
+      return all;
+    }
+
+    // Parallel laden
+    const [tankungen, kunden, orte, rechDB] = await Promise.all([
+      fetchAll('tankungen?abgerechnet=eq.true&rechnungsnr=not.is.null&select=kundennr,rechnungsnr,himenge,hipreis,zahltyp,hidatum,abgerechnet_am&order=rechnungsnr.asc'),
+      fetchAll('kunden?select=kundennr,name,ortid&order=name'),
+      fetchAll('ort?select=ortid,ortname,plz&order=ortid'),
+      fetchAll('rechnungen?select=*&order=rechnungsnr.desc'),
+    ]);
+
+    // Lookup-Maps
+    const ortMap = {};
+    orte.forEach(o => { ortMap[o.ortid] = `${o.plz||''} ${o.ortname||''}`.trim(); });
+    const kdMap = {};
+    kunden.forEach(k => { kdMap[k.kundennr] = { name: k.name||'—', ort: ortMap[k.ortid]||'—' }; });
+
+    // Tankungen nach Rechnungsnummer gruppieren
+    const groups = {};
+    for (const t of tankungen) {
+      const nr = t.rechnungsnr;
+      if (!groups[nr]) {
+        groups[nr] = {
+          rechnungsnr: nr,
+          kundennr:    t.kundennr,
+          kundenname:  kdMap[t.kundennr]?.name || '—',
+          kundenort:   kdMap[t.kundennr]?.ort  || '—',
+          zahltyp:     t.zahltyp,
+          total_menge: 0,
+          betrag:      0,
+          periode_von: t.hidatum,
+          periode_bis: t.hidatum,
+          abgerechnet_am: t.abgerechnet_am || null,
+          created_at:  null,
+        };
+      }
+      groups[nr].total_menge += parseFloat(t.himenge) || 0;
+      groups[nr].betrag      += parseFloat(t.hipreis) || 0;
+      // Min/Max aus hidatum als Perioden-Proxy
+      if (t.hidatum < groups[nr].periode_von) groups[nr].periode_von = t.hidatum;
+      if (t.hidatum > groups[nr].periode_bis) groups[nr].periode_bis = t.hidatum;
+      // abgerechnet_am: den neuesten Wert nehmen
+      if (t.abgerechnet_am && (!groups[nr].abgerechnet_am || t.abgerechnet_am > groups[nr].abgerechnet_am)) {
+        groups[nr].abgerechnet_am = t.abgerechnet_am;
+      }
+    }
+
+    // Echte Daten aus rechnungen-Tabelle bevorzugen (haben periode_von/bis + created_at)
+    for (const r of rechDB) {
+      if (groups[r.rechnungsnr]) {
+        if (r.kundenname) groups[r.rechnungsnr].kundenname = r.kundenname;
+        if (r.kundenort)  groups[r.rechnungsnr].kundenort  = r.kundenort;
+        if (r.periode_von) groups[r.rechnungsnr].periode_von = r.periode_von;
+        if (r.periode_bis) groups[r.rechnungsnr].periode_bis = r.periode_bis;
+        if (r.betrag)     groups[r.rechnungsnr].betrag      = parseFloat(r.betrag);
+        groups[r.rechnungsnr].created_at = r.created_at;
+      } else {
+        groups[r.rechnungsnr] = { ...r,
+          kundenname: r.kundenname || kdMap[r.kundennr]?.name || '—',
+          kundenort:  r.kundenort  || kdMap[r.kundennr]?.ort  || '—',
+        };
+      }
+    }
+
+    _rechnungenAll = Object.values(groups)
+      .sort((a,b) => (parseInt(b.rechnungsnr)||0) - (parseInt(a.rechnungsnr)||0));
+    rechnungenPeriodeDropdown();
+    rechnungenStats();
+    rechnungenFiltern();
+    toast(`${_rechnungenAll.length} Rechnungen geladen`, 'success');
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+function rechnungenPeriodeDropdown() {
+  const sel = document.getElementById('rech-filter-periode');
+  const perioden = [...new Set(_rechnungenAll
+    .filter(r => r.periode_von && r.periode_von.length >= 7)
+    .map(r => r.periode_von.slice(0,7))
+  )].sort((a,b) => b.localeCompare(a));
+  sel.innerHTML = '<option value="">Alle Perioden</option>' +
+    perioden.map(p => {
+      const [y,m] = p.split('-');
+      return `<option value="${p}">${m}.${y}</option>`;
+    }).join('');
+}
+
+function rechnungenStats() {
+  const fmtE = v => (v||0).toLocaleString('de',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
+  const gesamt = _rechnungenAll.reduce((s,r) => s+(parseFloat(r.betrag)||0), 0);
+  document.getElementById('rech-stat-gesamt').textContent = fmtE(gesamt);
+  document.getElementById('rech-stat-anzahl').textContent = _rechnungenAll.length + ' Rechnungen';
+  [['sepa','sepa'],['rechnung','rechnung'],['eigen','eigen']].forEach(([typ,id]) => {
+    const sub = _rechnungenAll.filter(r => r.zahltyp === typ);
+    const sum = sub.reduce((s,r) => s+(parseFloat(r.betrag)||0), 0);
+    document.getElementById(`rech-stat-${id}`).textContent = sub.length ? fmtE(sum) : '—';
+    document.getElementById(`rech-stat-${id}-cnt`).textContent = sub.length + ' Rechnungen';
+  });
+}
+
+function rechnungenFiltern() {
+  const q   = (document.getElementById('rech-search')?.value||'').toLowerCase();
+  const typ = document.getElementById('rech-filter-typ')?.value||'';
+  const per = document.getElementById('rech-filter-periode')?.value||'';
+
+  let rows = _rechnungenAll.filter(r => {
+    if (typ && r.zahltyp !== typ) return false;
+    if (per && !(r.periode_von||'').startsWith(per)) return false;
+    if (q) {
+      const hay = `${r.rechnungsnr||''} ${r.kundenname||''} ${r.kundenort||''} ${r.zahltyp||''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const col = _rechnungenSort.col, dir = _rechnungenSort.dir;
+  rows.sort((a,b) => {
+    let va = a[col]??'', vb = b[col]??'';
+    if (['betrag','betrag_netto','total_menge'].includes(col)) {
+      va=parseFloat(va)||0; vb=parseFloat(vb)||0;
+    } else if (col === 'rechnungsnr') {
+      va=parseInt(va)||0; vb=parseInt(vb)||0;
+    }
+    if (va<vb) return -dir; if (va>vb) return dir; return 0;
+  });
+
+  document.getElementById('rech-count-label').textContent =
+    rows.length !== _rechnungenAll.length
+      ? `${rows.length} von ${_rechnungenAll.length} Rechnungen`
+      : `${rows.length} Rechnungen`;
+
+  const typBadge = { sepa:'badge-sepa', rechnung:'badge-rechnung', eigen:'badge-eigen' };
+  const typLabel = { sepa:'SEPA', rechnung:'Rechnung', eigen:'Eigenverbr.' };
+  const fmtD  = d => d ? d.slice(0,10).split('-').reverse().join('.') : '—';
+  const fmtE  = v => v!=null ? (parseFloat(v)||0).toLocaleString('de',{minimumFractionDigits:2,maximumFractionDigits:2})+' €' : '—';
+  const fmtM  = v => v!=null ? (parseFloat(v)||0).toLocaleString('de',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+
+  // Datum: abgerechnet_am > created_at > periode_bis > periode_von
+  const datumFuer = r => {
+    if (r.abgerechnet_am) return fmtD(r.abgerechnet_am);
+    if (r.created_at) return new Date(r.created_at).toLocaleDateString('de',{day:'2-digit',month:'2-digit',year:'numeric'});
+    return '—';
+  };
+
+  // Leere Rechnungen zählen und Button anzeigen
+  const leereAnzahl = rows.filter(r => !(r.total_menge > 0)).length;
+  const berBtn = document.getElementById('btn-rech-bereinigen');
+  if (berBtn) {
+    berBtn.style.display = leereAnzahl > 0 ? '' : 'none';
+    berBtn.textContent = `🗑 ${leereAnzahl} leere bereinigen`;
+  }
+
+  const tbody = document.getElementById('rech-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text3);">Keine Rechnungen gefunden</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const leer = !(r.total_menge > 0);
+    const rowStyle = leer ? 'background:rgba(224,82,82,0.08);' : '';
+    return `<tr style="${rowStyle}">
+    <td class="mono" style="color:${leer?'var(--red)':'var(--accent)'};font-weight:600;">${r.rechnungsnr||'—'}${leer ? ' <span style="font-size:10px;color:var(--red);">⚠ leer</span>' : ''}</td>
+    <td><a href="#" onclick="showPage('kunden');openKundeDetail(${r.kundennr});return false;" style="color:var(--accent2)">${r.kundenname||'—'}</a></td>
+    <td class="muted" style="font-size:12px;">${r.kundenort||'—'}</td>
+    <td class="mono" style="font-size:12px;">${datumFuer(r)}</td>
+    <td class="right mono">${fmtM(r.total_menge)} L</td>
+    <td class="right mono" style="color:var(--accent)">${fmtE(r.betrag)}</td>
+    <td><span class="badge ${typBadge[r.zahltyp]||''}">${typLabel[r.zahltyp]||r.zahltyp||'—'}</span></td>
+    <td style="display:flex;gap:6px;">
+      ${leer
+        ? `<button class="btn btn-sm" style="border-color:var(--red);color:var(--red);" onclick="rechnungLoeschen('${r.rechnungsnr}')">🗑 Löschen</button>`
+        : `<button class="btn btn-sm" onclick="rechnungMenu(event,${r.kundennr},'${r.periode_von||''}','${r.periode_bis||''}','${r.rechnungsnr||''}')">▾ Aktionen</button>`
+      }
+    </td>
+  </tr>`;
+  }).join('');
+}
+
+function rechnungenSortieren(col, thEl) {
+  if (_rechnungenSort.col === col) {
+    _rechnungenSort.dir *= -1;
+  } else {
+    _rechnungenSort.col = col;
+    _rechnungenSort.dir = 1;
+  }
+  document.querySelectorAll('#rech-table thead th').forEach(th => th.classList.remove('sort-asc','sort-desc'));
+  thEl.classList.add(_rechnungenSort.dir === 1 ? 'sort-asc' : 'sort-desc');
+  rechnungenFiltern();
+}
+
+async function rechnungLoeschen(rechnungsnr) {
+  if (!confirm(`Rechnung ${rechnungsnr} löschen?\n\nDie Nummer wird damit wieder für den nächsten Rechnungslauf freigegeben.`)) return;
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'return=minimal' };
+  try {
+    await fetch(`${_SBURL}/rest/v1/rechnung_positionen?rechnungsnr=eq.${rechnungsnr}`, { method: 'DELETE', headers: h });
+    await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${rechnungsnr}`, { method: 'DELETE', headers: h });
+    toast(`Rechnung ${rechnungsnr} gelöscht`, 'success');
+    rechnungenLaden();
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+async function rechnungenLeereBereinigen() {
+  const leere = _rechnungenAll.filter(r => !(r.total_menge > 0));
+  if (!leere.length) { toast('Keine leeren Rechnungen gefunden', 'info'); return; }
+  if (!confirm(`${leere.length} leere Rechnung(en) löschen?\n\n${leere.map(r=>r.rechnungsnr).join(', ')}\n\nDiese Nummern werden wieder für den nächsten Rechnungslauf freigegeben.`)) return;
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'return=minimal' };
+  try {
+    for (const r of leere) {
+      await fetch(`${_SBURL}/rest/v1/rechnung_positionen?rechnungsnr=eq.${r.rechnungsnr}`, { method: 'DELETE', headers: h });
+      await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${r.rechnungsnr}`, { method: 'DELETE', headers: h });
+    }
+    toast(`${leere.length} leere Rechnungen gelöscht`, 'success');
+    rechnungenLaden();
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+function rechnungMenu(event, kundennr, von, bis, rechnungsnr) {
+  // Altes Menü entfernen
+  document.querySelectorAll('.rechnung-menu').forEach(m => m.remove());
+
+  const menu = document.createElement('div');
+  menu.className = 'rechnung-menu';
+  menu.style.cssText = `
+    position:fixed; z-index:99999;
+    background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.4); padding:6px 0; min-width:220px;
+    font-size:13px;
+  `;
+
+  const items = [
+    { icon: '🖥️', label: 'Am Bildschirm anzeigen',
+      action: `viewPDF(${kundennr},'${von}','${bis}','${rechnungsnr}')` },
+    { icon: '📥', label: 'Als PDF herunterladen',
+      action: `generatePDF(${kundennr},'rechnung',{von:'${von}',bis:'${bis}',fixedRechnungsnr:'${rechnungsnr}'})` },
+    { icon: '📧', label: 'Per E-Mail versenden',
+      action: `sendEmail(${kundennr},'${von}','${bis}','${rechnungsnr}')` },
+  ];
+
+  menu.innerHTML = items.map(item => `
+    <div class="rechnung-menu-item" onclick="${item.action};this.closest('.rechnung-menu').remove()"
+      style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background 0.1s;"
+      onmouseover="this.style.background='var(--bg4)'"
+      onmouseout="this.style.background=''">
+      <span style="font-size:16px;">${item.icon}</span>
+      <span>${item.label}</span>
+    </div>`).join('<div style="height:1px;background:var(--border);margin:4px 0;"></div>');
+
+  document.body.appendChild(menu);
+
+  const rect = event.target.getBoundingClientRect();
+  let left = rect.left, top = rect.bottom + 4;
+  if (left + 230 > window.innerWidth) left = window.innerWidth - 235;
+  if (top + 160 > window.innerHeight) top = rect.top - 165;
+  menu.style.left = left + 'px';
+  menu.style.top  = top  + 'px';
+
+  setTimeout(() => {
+    document.addEventListener('click', function handler() {
+      menu.remove();
+      document.removeEventListener('click', handler);
+    });
+  }, 100);
+}
+
 document.addEventListener('DOMContentLoaded', loadConfig);
 
 // Close modals on overlay click
