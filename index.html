@@ -286,6 +286,11 @@
     white-space: nowrap;
   }
 
+  thead th.sortable { cursor: pointer; user-select: none; }
+  thead th.sortable:hover { color: var(--text); }
+  thead th.sort-asc::after  { content: ' ↑'; color: var(--accent); }
+  thead th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+
   tbody tr {
     border-bottom: 1px solid var(--border);
     cursor: pointer;
@@ -883,7 +888,7 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
           <div class="card">
             <div class="card-title">Letzte Tankungen</div>
-            <div id="recent-tankungen">
+            <div id="recent-tankungen" style="max-height:400px;overflow-y:auto;">
               <div class="empty-state" style="padding: 30px 0;">
                 <div class="empty-sub">Noch keine Daten importiert</div>
               </div>
@@ -899,10 +904,10 @@
           </div>
         </div>
 
-        <!-- Top 25 Kunden -->
+        <!-- Top 100 Kunden -->
         <div class="card" style="margin-top:16px;">
           <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-            <div class="card-title" style="margin:0;">Top 25 Kunden</div>
+            <div class="card-title" style="margin:0;">Top 100 Kunden</div>
             <div style="display:flex; gap:6px; margin-left:auto;">
               <select id="top25-periode" onchange="renderTop25()" style="font-size:11px; background:var(--bg3); border:1px solid var(--border); color:var(--text1); border-radius:4px; padding:3px 8px;">
                 <option value="gesamt">Gesamt</option>
@@ -915,7 +920,7 @@
               </select>
             </div>
           </div>
-          <div id="top25-body">
+          <div id="top25-body" style="max-height:600px; overflow-y:auto;">
             <div class="empty-state" style="padding:30px 0;"><div class="empty-sub">Noch keine Daten</div></div>
           </div>
         </div>
@@ -1811,8 +1816,7 @@
                 <th class="sortable" onclick="laufSortieren('sepa','ort',this)">Ort</th>
                 <th class="sortable" style="text-align:right" onclick="laufSortieren('sepa','menge',this)">Liter</th>
                 <th class="sortable" style="text-align:right" onclick="laufSortieren('sepa','total',this)">Betrag</th>
-                <th style="text-align:right">RCUR</th><th style="text-align:right;color:var(--red)">Diff.</th>
-                <th>SEPA</th><th>Re.-Nr.</th><th></th>
+                <th>SEPA</th><th style="color:var(--text2)">📧 Gesendet</th><th class="sortable" onclick="laufSortieren('sepa','rechnungsnr',this)">Re.-Nr.</th><th></th>
               </tr></thead>
               <tbody id="lauf-tbody-sepa"></tbody>
             </table></div>
@@ -1830,7 +1834,7 @@
                 <th class="sortable" onclick="laufSortieren('rechnung','ort',this)">Ort</th>
                 <th class="sortable" style="text-align:right" onclick="laufSortieren('rechnung','menge',this)">Liter</th>
                 <th class="sortable" style="text-align:right" onclick="laufSortieren('rechnung','total',this)">Betrag</th>
-                <th>Re.-Nr.</th><th></th>
+                <th style="color:var(--text2)">📧 Gesendet</th><th class="sortable" onclick="laufSortieren('rechnung','rechnungsnr',this)">Re.-Nr.</th><th></th>
               </tr></thead>
               <tbody id="lauf-tbody-rechnung"></tbody>
             </table></div>
@@ -1847,7 +1851,7 @@
                 <th class="sortable" onclick="laufSortieren('eigen','name',this)">Kunde</th>
                 <th class="sortable" style="text-align:right" onclick="laufSortieren('eigen','menge',this)">Liter</th>
                 <th class="sortable" style="text-align:right" onclick="laufSortieren('eigen','total',this)">Betrag</th>
-                <th>Re.-Nr.</th><th></th>
+                <th class="sortable" onclick="laufSortieren('eigen','rechnungsnr',this)">Re.-Nr.</th><th></th>
               </tr></thead>
               <tbody id="lauf-tbody-eigen"></tbody>
             </table></div>
@@ -1861,6 +1865,9 @@
             <div id="lauf-progress-bar" style="height:100%;width:0%;background:var(--accent);transition:width 0.3s;border-radius:3px;"></div>
           </div>
         </div>
+
+        <!-- E-Mail-Protokoll -->
+        <div id="lauf-email-log" style="display:none; background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:14px; margin-top:10px; max-height:200px; overflow-y:auto;"></div>
 
       </div>
     </div>
@@ -1897,6 +1904,12 @@
           <select class="filter-select" id="rech-filter-periode" onchange="rechnungenFiltern()">
             <option value="">Alle Perioden</option>
           </select>
+          <select class="filter-select" id="rech-filter-jahr" onchange="rechnungenLaden()">
+          </select>
+          <span style="color:var(--text3);font-size:12px;">Re.-Nr.:</span>
+          <input type="number" class="filter-select" id="rech-nr-von" placeholder="von" style="width:90px;" onchange="rechnungenLaden()">
+          <span style="color:var(--text3);font-size:12px;">–</span>
+          <input type="number" class="filter-select" id="rech-nr-bis" placeholder="bis" style="width:90px;" onchange="rechnungenLaden()">
         </div>
 
         <!-- Tabelle -->
@@ -2263,7 +2276,21 @@ function showPage(id, el) {
     const el = document.getElementById('hia-last-import');
     if (el) el.textContent = last ? `Letzter Import: ${last}` : 'Noch nie importiert';
   }
-  if (id === 'abrechnung') { initLaufPeriods(); document.getElementById('btn-lauf-reset').style.display = 'inline-block'; }
+  if (id === 'abrechnung') { 
+    initLaufPeriods(); 
+    document.getElementById('btn-lauf-reset').style.display = 'inline-block';
+    // Falls _laufData bereits vorhanden (Seitenwechsel und zurück), Ansicht wiederherstellen
+    if (_laufData) {
+      document.getElementById('lauf-summen').style.display = 'block';
+      document.getElementById('lauf-kunden-container').style.display = 'block';
+      document.getElementById('btn-rechnungslauf').style.display = 'block';
+      document.getElementById('btn-sepa-xml').style.display = 'block';
+      renderLaufTabelle('sepa');
+      renderLaufTabelle('rechnung');
+      renderLaufTabelle('eigen');
+      updateEmailButton();
+    }
+  }
   if (id === 'ausweise') loadAusweise();
   if (id === 'sepa') loadSepaMandate();
   if (id === 'dashboard') refreshDashboard();
@@ -3295,15 +3322,26 @@ async function importTankungen(records, lastModified, forceAll = false) {
     return null;
   }
 
-  // Nur neue Datensätze (nach letztem Import-Datum)
-  const newRecords = lastDate
+  // Nur neue Datensätze — mit 56-Tage-Puffer rückwirkend (deckt Nachträge ab)
+  // Hintergrund: Tankungen können bis zu 8 Wochen nachträglich in der HIA erscheinen
+  // oder beim ersten Import eines Zeitraums fehlen (z.B. nach Test-Import).
+  // Upsert auf hibelegnr stellt sicher dass vorhandene Daten nicht überschrieben werden.
+  const cutoff = lastDate
+    ? (() => {
+        const d = new Date(lastDate);
+        d.setDate(d.getDate() - 56);
+        return d.toISOString().slice(0, 10);
+      })()
+    : null;
+
+  const newRecords = cutoff
     ? records.filter(r => {
         const d = toIsoDate(r.HIDATUM);
-        return d && d > lastDate;
+        return d && d >= cutoff;
       })
     : records;
 
-  logImport(`[HIA] ${newRecords.length} neue Datensätze (nach ${lastDate || 'Beginn'})`);
+  logImport(`[HIA] ${newRecords.length} neue/aktualisierte Datensätze (ab ${cutoff || 'Beginn'}, Puffer: 56 Tage)`);
 
   if (newRecords.length === 0) {
     logImport(`[HIA] ✓ Keine neuen Tankungen — DB ist aktuell`);
@@ -4740,31 +4778,70 @@ function rcurBetragFuer(name) {
 
 function initLaufPeriods() {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth()+1).padStart(2,'0');
-  const lastM = now.getMonth() === 0 ? 12 : now.getMonth();
-  const lastY = now.getMonth() === 0 ? y-1 : y;
-  const lastMStr = String(lastM).padStart(2,'0');
-  const daysInLastM = new Date(lastY, lastM, 0).getDate();
+  const tag = now.getDate();
 
-  const periods = [
-    { label: `16.–${new Date(y,now.getMonth(),0).getDate()}. ${new Date(y,now.getMonth()-1,1).toLocaleString('de',{month:'short'})}`,
-      von: `${lastY}-${lastMStr}-16`, bis: `${lastY}-${lastMStr}-${daysInLastM}` },
-    { label: `01.–15. ${new Date(y,now.getMonth()-1,1).toLocaleString('de',{month:'short'})}`,
-      von: `${lastY}-${lastMStr}-01`, bis: `${lastY}-${lastMStr}-15` },
-    { label: `16.–30. Apr 26`, von: '2026-04-16', bis: '2026-04-30' },
-  ];
+  // Hilfsfunktion: Monatsname kurz
+  function moName(y, m) {
+    return new Date(y, m, 1).toLocaleString('de', { month: 'short' });
+  }
+  // Hilfsfunktion: letzter Tag des Monats
+  function lastDay(y, m) {
+    return new Date(y, m + 1, 0).getDate();
+  }
+  // Hilfsfunktion: Jahr 2-stellig
+  function yr2(y) { return String(y).slice(2); }
+  // Hilfsfunktion: Monat 2-stellig
+  function m2(m) { return String(m + 1).padStart(2, '0'); }
+
+  const periods = [];
+  // Immer die letzten 4 Halbmonate anzeigen, dynamisch berechnet
+  // Startpunkt: aktuelle Monatshälfte (1-15 oder 16-Ende)
+  // Dann rückwärts 3 weitere
+  let curY = now.getFullYear();
+  let curM = now.getMonth(); // 0-basiert
+  let curHalf = tag <= 15 ? 1 : 2; // 1 = erste Hälfte, 2 = zweite Hälfte
+
+  for (let i = 0; i < 4; i++) {
+    let y = curY, m = curM, half = curHalf;
+
+    // i Schritte zurück
+    let steps = i;
+    while (steps > 0) {
+      if (half === 1) { half = 2; m--; if (m < 0) { m = 11; y--; } }
+      else { half = 1; }
+      steps--;
+    }
+
+    const ld = lastDay(y, m);
+    const von = half === 1
+      ? `${y}-${m2(m)}-01`
+      : `${y}-${m2(m)}-16`;
+    const bis = half === 1
+      ? `${y}-${m2(m)}-15`
+      : `${y}-${m2(m)}-${ld}`;
+    const label = half === 1
+      ? `01.–15. ${moName(y, m)} ${yr2(y)}`
+      : `16.–${ld}. ${moName(y, m)} ${yr2(y)}`;
+
+    periods.push({ label, von, bis });
+  }
 
   const btns = document.getElementById('lauf-period-btns');
   if (!btns) return;
-  btns.innerHTML = periods.map(p =>
-    `<button class="btn btn-sm" onclick="setLaufPeriod('${p.von}','${p.bis}')">${p.label}</button>`
+  btns.innerHTML = periods.map((p, i) =>
+    `<button class="btn btn-sm${i === 0 ? ' btn-primary' : ''}" onclick="setLaufPeriod('${p.von}','${p.bis}')">${p.label}</button>`
   ).join('');
 }
 
 function setLaufPeriod(von, bis) {
-  document.getElementById('lauf-von').value = von;
-  document.getElementById('lauf-bis').value = bis;
+  const vonEl = document.getElementById('lauf-von');
+  const bisEl = document.getElementById('lauf-bis');
+  // _laufData nur zurücksetzen wenn sich der Zeitraum wirklich ändert
+  if (vonEl.value !== von || bisEl.value !== bis) {
+    _laufData = null;
+  }
+  vonEl.value = von;
+  bisEl.value = bis;
   document.getElementById('btn-lauf-reset').style.display = 'inline-block';
 }
 
@@ -4786,11 +4863,21 @@ async function laufLaden() {
     const tankungen = await res.json();
     if (!Array.isArray(tankungen)) { toast('Fehler beim Laden', 'error'); return; }
 
-    if (!tankungen.length) {
-      warnEl.style.display = 'block';
-      warnEl.textContent = `Keine offenen Tankungen im Zeitraum ${von} – ${bis}.`;
+    // EC-Tankungen ohne echten Kunden herausfiltern (kundennr=null/0 oder zahltyp=ec)
+    const echteKundenTankungen = tankungen.filter(t => t.kundennr && t.kundennr !== 0 && t.zahltyp !== 'ec');
+
+    if (!echteKundenTankungen.length) {
+      // Keine echten Kundentankungen — vielleicht ist der Lauf schon erledigt?
+      const restored = await laufWiederherstellen(von, bis);
+      if (!restored) {
+        warnEl.style.display = 'block';
+        warnEl.textContent = `Keine offenen Tankungen im Zeitraum ${von} – ${bis}.`;
+      }
       return;
     }
+
+    // Nur echte Kunden-Tankungen weiterverarbeiten
+    const tankungen_gefiltert = echteKundenTankungen;
 
     // ── PLAUSIBILITÄTSPRÜFUNG ────────────────────────────────
     const bisDate = new Date(bis);
@@ -4804,7 +4891,7 @@ async function laufLaden() {
     const erwartetesEnde = bisTag === 15 || bisTag === letzterTagDesMonats;
 
     // Neuestes Tankdatum in den geladenen Daten
-    const maxDatum = tankungen.reduce((max, t) => t.hidatum > max ? t.hidatum : max, '');
+    const maxDatum = tankungen_gefiltert.reduce((max, t) => t.hidatum > max ? t.hidatum : max, '');
     const maxTag = parseInt(maxDatum.slice(8, 10));
 
     // Warnungen sammeln
@@ -4820,7 +4907,7 @@ async function laufLaden() {
     // Prüfung 2: Kein Eintrag im letzten Tag der Periode (nur wenn Monatsende)
     if (bisTag === letzterTagDesMonats) {
       const letzterTagStr = bis; // YYYY-MM-DD
-      const hatLetztenTag = tankungen.some(t => t.hidatum === letzterTagStr);
+      const hatLetztenTag = tankungen_gefiltert.some(t => t.hidatum === letzterTagStr);
       // Nur warnen wenn wirklich gar nichts am letzten Tag
       if (!hatLetztenTag && diffTage > 0) {
         warnungen.push(`⚠ Keine Tankungen am ${fmtDatum(bis)} (letzter Tag der Periode) gefunden.`);
@@ -4829,7 +4916,7 @@ async function laufLaden() {
 
     // Prüfung 3: Halbmonat — kein Eintrag am 15.
     if (bisTag === 15) {
-      const hatBisTag = tankungen.some(t => t.hidatum === bis);
+      const hatBisTag = tankungen_gefiltert.some(t => t.hidatum === bis);
       if (!hatBisTag && diffTage > 0) {
         warnungen.push(`⚠ Keine Tankungen am ${fmtDatum(bis)} gefunden — möglicherweise fehlen Daten vom 15.`);
       }
@@ -4855,7 +4942,7 @@ async function laufLaden() {
 
     // Gruppiere nach Kunde
     const kunden = {};
-    for (const t of tankungen) {
+    for (const t of tankungen_gefiltert) {
       const knr = t.kundennr || 0;
       if (!kunden[knr]) {
         const k = kundenMap[knr] || { kundennr: knr, name: `KD ${knr}`, ort: null };
@@ -4901,6 +4988,10 @@ async function laufLaden() {
 
     _laufData = { von, bis, kunden };
 
+    // Zeitraum für Wiederherstellung nach Seitenwechsel merken
+    localStorage.setItem('lauf_von', von);
+    localStorage.setItem('lauf_bis', bis);
+
     // Summen berechnen
     const sums = { sepa: 0, rechnung: 0, eigen: 0, ec: 0 };
     const cnts = { sepa: 0, rechnung: 0, eigen: 0 };
@@ -4928,8 +5019,137 @@ async function laufLaden() {
     renderLaufTabelle('rechnung');
     renderLaufTabelle('eigen');
 
-    toast(`${tankungen.length} offene Tankungen für ${Object.keys(kunden).length} Kunden geladen`, 'success');
+    toast(`${tankungen_gefiltert.length} offene Tankungen für ${Object.keys(kunden).length} Kunden geladen`, 'success');
   } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+// Rechnungslauf aus DB wiederherstellen (nach Seitenwechsel)
+async function laufWiederherstellen(von, bis) {
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-99999' };
+  try {
+    // Bereits abgerechnete Tankungen für diesen Zeitraum laden
+    const [tankRes, rechRes] = await Promise.all([
+      fetch(`${_SBURL}/rest/v1/tankungen?hidatum=gte.${von}&hidatum=lte.${bis}&abgerechnet=eq.true&select=*&order=kundennr,hidatum`, { headers: h }),
+      fetch(`${_SBURL}/rest/v1/rechnungen?periode_von=eq.${von}&periode_bis=eq.${bis}&select=rechnungsnr,kundennr,email_sent_at,email_empfaenger`, { headers: h })
+    ]);
+    const tankungen = await tankRes.json();
+    const rechnungen = await rechRes.json();
+    console.log(`[Wiederherstellen] Tankungen: ${Array.isArray(tankungen) ? tankungen.length : 'kein Array'}, Rechnungen: ${Array.isArray(rechnungen) ? rechnungen.length : 'kein Array'}`);
+    if (!Array.isArray(tankungen) || !tankungen.length) return false;
+
+    // Email-Infos als Map
+    const emailMap = {};
+    if (Array.isArray(rechnungen)) {
+      for (const r of rechnungen) emailMap[r.kundennr] = r.email_sent_at || null;
+    }
+
+    // Kunden laden falls nötig
+    if (!state.data.kunden.length) await loadKunden();
+    console.log(`[Wiederherstellen] Kunden in state: ${state.data.kunden.length}, Ausweise: ${state.data.ausweise?.length || 0}`);
+    const kundenMap = {};
+    for (const k of state.data.kunden) kundenMap[k.kundennr] = k;
+
+    // Gleiche Gruppierungslogik wie laufLaden
+    const kunden = {};
+    for (const t of tankungen) {
+      const knr = t.kundennr || 0;
+      if (!kunden[knr]) {
+        const k = kundenMap[knr] || { kundennr: knr, name: `KD ${knr}`, ort: null };
+        // Zahltyp: k.mazaart ist das zusammengesetzte Feld aus loadKunden (aus Ausweisen)
+        // k.kuzart ist der direkte DB-Wert — beide prüfen
+        let zahltyp = 'rechnung';
+        const zahlArt = k.kuzart || k.mazaart;
+        if (zahlArt == 1) zahltyp = 'sepa';
+        else if (zahlArt == 2) zahltyp = 'eigen';
+        else if (zahlArt == 3) zahltyp = 'rechnung';
+        else {
+          // Direkt aus Ausweisen nochmal prüfen
+          const kAusweise = (state.data.ausweise || []).filter(a => a.kundennr == knr);
+          const ma = kAusweise.find(a=>a.mazaart==1)?.mazaart
+            ?? kAusweise.find(a=>a.mazaart==2)?.mazaart
+            ?? kAusweise.find(a=>a.mazaart==3)?.mazaart;
+          if (ma == 1) zahltyp = 'sepa';
+          else if (ma == 2) zahltyp = 'eigen';
+          else if (ma == 3) zahltyp = 'rechnung';
+          else zahltyp = 'rechnung';
+          if (knr < 20) console.log(`[debug kd${knr}] kuzart=${k.kuzart} mazaart=${k.mazaart} ma=${ma} → ${zahltyp}`);
+        }
+        const kundeAusweise = (state.data.ausweise || []).filter(a => a.kundennr == knr);
+        const rabattCentProLiter = kundeAusweise.reduce((max, a) => Math.max(max, parseFloat(a.rabatt || 0)), 0);
+        kunden[knr] = {
+          kundennr: knr, kunde: k, items: [], total: 0, menge: 0,
+          zahltyp, rechnungsnr: t.rechnungsnr || null,
+          name: k.name || `KD ${knr}`,
+          email: (k.email || '').trim() || (k.ort?.email || '').trim() || null,
+          orfunktion: k.ort?.orfunktion || '',
+          rabattCentProLiter, mengeDiesel: 0, rabattBetrag: 0,
+          email_sent_at: emailMap[knr] || null
+        };
+      }
+      kunden[knr].items.push(t);
+      kunden[knr].total += Math.round((t.hipreis || 0) * 100);
+      kunden[knr].menge += t.himenge || 0;
+      if ((t.hiartbez || '').toLowerCase() === 'diesel') {
+        kunden[knr].mengeDiesel = (kunden[knr].mengeDiesel || 0) + (t.himenge || 0);
+      }
+      // Rechnungsnr: neueste nehmen
+      if (t.rechnungsnr && (!kunden[knr].rechnungsnr || t.rechnungsnr > kunden[knr].rechnungsnr)) {
+        kunden[knr].rechnungsnr = t.rechnungsnr;
+      }
+    }
+
+    // Cent → Euro + Rabatt
+    for (const k of Object.values(kunden)) {
+      k.total = k.total / 100;
+      if (k.rabattCentProLiter > 0 && (k.mengeDiesel || 0) > 0) {
+        const rabattCent = Math.round((k.mengeDiesel || 0) * k.rabattCentProLiter);
+        k.rabattBetrag = rabattCent / 100;
+        k.total = (Math.round(k.total * 100) - rabattCent) / 100;
+      }
+    }
+
+    _laufData = { von, bis, kunden };
+
+    // Summen + Tabellen rendern
+    const sums = { sepa: 0, rechnung: 0, eigen: 0, ec: 0 };
+    const cnts = { sepa: 0, rechnung: 0, eigen: 0 };
+    for (const k of Object.values(kunden)) {
+      const typ = k.zahltyp;
+      sums[typ] = parseFloat(((sums[typ] || 0) + parseFloat(k.total.toFixed(2))).toFixed(2));
+      if (typ !== 'ec') cnts[typ] = (cnts[typ] || 0) + 1;
+    }
+
+    document.getElementById('lauf-summen').style.display = 'block';
+    document.getElementById('lauf-kunden-container').style.display = 'block';
+    document.getElementById('btn-rechnungslauf').style.display = 'block';
+    document.getElementById('btn-sepa-xml').style.display = 'block';
+
+    document.getElementById('lauf-sum-sepa').textContent = fmt(sums.sepa) + ' €';
+    document.getElementById('lauf-sum-rechnung').textContent = fmt(sums.rechnung) + ' €';
+    document.getElementById('lauf-sum-eigen').textContent = fmt(sums.eigen) + ' €';
+    document.getElementById('lauf-sum-ec').textContent = fmt(sums.ec) + ' €';
+    document.getElementById('lauf-cnt-sepa').textContent = cnts.sepa + ' Kunden';
+    document.getElementById('lauf-cnt-rechnung').textContent = cnts.rechnung + ' Kunden';
+    document.getElementById('lauf-cnt-eigen').textContent = cnts.eigen + ' Kunden';
+
+    // Periode in Felder setzen
+    document.getElementById('lauf-von').value = von;
+    document.getElementById('lauf-bis').value = bis;
+
+    console.log(`[Wiederherstellen] Kunden-Gruppen: ${Object.keys(kunden).length}, SEPA: ${Object.values(kunden).filter(k=>k.zahltyp==='sepa').length}, Rechnung: ${Object.values(kunden).filter(k=>k.zahltyp==='rechnung').length}, Eigen: ${Object.values(kunden).filter(k=>k.zahltyp==='eigen').length}`);
+    renderLaufTabelle('sepa');
+    renderLaufTabelle('rechnung');
+    renderLaufTabelle('eigen');
+
+    // E-Mail-Button Status aktualisieren
+    updateEmailButton();
+
+    toast(`Rechnungslauf ${von} – ${bis} wiederhergestellt (${Object.keys(kunden).length} Kunden)`, 'success');
+    return true;
+  } catch(e) {
+    console.error('Lauf-Wiederherstellung fehlgeschlagen:', e);
+    return false;
+  }
 }
 
 const _laufSort = { sepa: { col: 'name', dir: 1 }, rechnung: { col: 'name', dir: 1 }, eigen: { col: 'name', dir: 1 } };
@@ -4960,9 +5180,11 @@ function renderLaufTabelle(typ) {
       if (col === 'ort')  { va = a.kunde?.ort?.ortname || ''; vb = b.kunde?.ort?.ortname || ''; return va.localeCompare(vb, 'de') * dir; }
       if (col === 'menge') { return ((a.menge||0) - (b.menge||0)) * dir; }
       if (col === 'total') { return ((a.total||0) - (b.total||0)) * dir; }
+      if (col === 'rechnungsnr') { return ((parseInt(a.rechnungsnr)||0) - (parseInt(b.rechnungsnr)||0)) * dir; }
       return 0;
     });
   if (!kunden.length) {
+    console.log(`[render] ${typ}: 0 Kunden — alle zahltypen: ${[...new Set(Object.values(_laufData.kunden).map(k=>k.zahltyp))].join(',')}`);
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:12px;">Keine ${typ}-Kunden</td></tr>`;
     return;
   }
@@ -4977,18 +5199,16 @@ function renderLaufTabelle(typ) {
       ? `<span class="mono" style="color:var(--green)">${k.rechnungsnr}</span>`
       : '<span style="color:var(--text3)">—</span>';
 
-    // RCUR-Vergleich (nur für SEPA)
-    let rcurCells = '';
-    if (typ === 'sepa') {
-      const rcurBetrag = rcurBetragFuer(k.kunde.name || '');
-      if (rcurBetrag !== null) {
-        const diff = parseFloat((parseFloat(k.total.toFixed(2)) - rcurBetrag).toFixed(2));
-        const diffColor = diff === 0 ? 'var(--green)' : 'var(--red)';
-        const diffStr = diff === 0 ? '✓' : (diff > 0 ? '+' : '') + fmt(diff) + ' €';
-        rcurCells = `<td class="right mono" style="font-size:11px;color:var(--text3)">${fmt(rcurBetrag)} €</td>
-      <td class="right mono" style="font-size:11px;color:${diffColor};font-weight:${diff===0?'normal':'600'}">${diffStr}</td>`;
+    // E-Mail-Sendedatum (nur für SEPA/Rechnung)
+    let emailCell = '';
+    if (typ === 'sepa' || typ === 'rechnung') {
+      if (k.email_sent_at) {
+        const dt = new Date(k.email_sent_at);
+        const dtStr = dt.toLocaleDateString('de', {day:'2-digit',month:'2-digit',year:'numeric'})
+                    + ' ' + dt.toLocaleTimeString('de', {hour:'2-digit',minute:'2-digit'});
+        emailCell = `<td style="font-size:11px;color:var(--green);font-family:var(--mono);">✓ ${dtStr}</td>`;
       } else {
-        rcurCells = `<td class="right mono" style="font-size:11px;color:var(--text3)">—</td><td></td>`;
+        emailCell = `<td style="font-size:11px;color:var(--text3);">—</td>`;
       }
     }
 
@@ -4998,8 +5218,8 @@ function renderLaufTabelle(typ) {
       ${typ !== 'eigen' ? `<td class="muted" style="font-size:12px;">${ortStr}</td>` : ''}
       <td class="right mono">${fmt(k.menge)} L</td>
       <td class="right mono" style="color:var(--accent)">${fmt(k.total)} €${k.rabattBetrag > 0 ? `<br><span style="font-size:10px;color:var(--text3)">−${fmt(k.rabattBetrag)} € Rabatt (${k.rabattCentProLiter} ct/L)</span>` : ''}</td>
-      ${typ === 'sepa' ? rcurCells : ''}
       ${typ === 'sepa' ? `<td>${sepaStatus}</td>` : ''}
+      ${(typ === 'sepa' || typ === 'rechnung') ? emailCell : ''}
       <td id="lauf-rechnr-${k.kundennr}">${rechnNr}</td>
       <td><button class="btn btn-sm" id="lauf-pdf-${k.kundennr}"
         onclick="laufPDF(${k.kundennr})" ${!k.rechnungsnr ? 'disabled' : ''}>PDF</button></td>
@@ -5121,6 +5341,11 @@ async function rechnungslaufStarten() {
 
   let done = 0;
   for (const k of kunden) {
+    // Sicherheitsprüfung: Nummer nochmal live gegen DB prüfen bevor sie vergeben wird
+    while (await rechnungsnrExistiert(nextNr)) {
+      logImport && logImport(`[Rechnungslauf] ⚠ ${nextNr} bereits in DB — überspringe zu ${nextNr + 1}`);
+      nextNr++;
+    }
     const rNr = nextNr++;
     progText.textContent = `${done+1}/${kunden.length}: KD ${k.kundennr} → Re. ${rNr}`;
     progBar.style.width = `${Math.round((done/kunden.length)*100)}%`;
@@ -5217,65 +5442,148 @@ async function rechnungslaufStarten() {
   document.getElementById('btn-rechnungslauf').disabled = false;
   toast(`Rechnungslauf abgeschlossen: ${done} Rechnungen`, 'success');
 
-  // E-Mail-Button anzeigen wenn E-Kunden vorhanden
-  const eKunden = kunden.filter(k => {
-    const fn = (k.orfunktion || '').trim().toUpperCase();
-    return fn === 'E' && k.email;
-  });
-  if (eKunden.length > 0) {
-    const emailBtn = document.getElementById('btn-email-versand');
-    if (emailBtn) {
-      emailBtn.style.display = '';
-      emailBtn.textContent = `📧 ${eKunden.length} E-Mails versenden`;
-    }
-  }
+  // E-Mail-Button Status aktualisieren
+  updateEmailButton();
 }
 
+function updateEmailButton() {
+  const btn = document.getElementById('btn-email-versand');
+  if (!btn) return;
+  if (!_laufData) { btn.style.display = 'none'; return; }
+
+  const alleKunden = Object.values(_laufData.kunden);
+
+  // Kunden mit Rechnungsnummer und Funktion=E oder F
+  const eKunden = alleKunden.filter(k => {
+    const fn = (k.orfunktion || '').trim().toUpperCase();
+    return fn === 'E' && k.email && k.rechnungsnr;
+  });
+  const fKunden = alleKunden.filter(k => {
+    const fn = (k.orfunktion || '').trim().toUpperCase();
+    return fn === 'F' && k.rechnungsnr;
+  });
+
+  // Button nur anzeigen wenn:
+  // 1. Mindestens ein E/F-Kunde hat eine Rechnungsnummer (Lauf wurde durchgeführt)
+  // 2. Mindestens einer hat noch nicht gesendet
+  const nochNichtGesendet = eKunden.filter(k => !k.email_sent_at);
+  const hatRechnungsnr = eKunden.length > 0 || fKunden.length > 0;
+
+  if (!hatRechnungsnr || (nochNichtGesendet.length === 0 && fKunden.length === 0)) {
+    btn.style.display = 'none';
+    return;
+  }
+
+  btn.style.display = '';
+  let label = '';
+  if (nochNichtGesendet.length > 0) label += `📧 ${nochNichtGesendet.length} E-Mail${nochNichtGesendet.length > 1 ? 's' : ''}`;
+  if (eKunden.length > nochNichtGesendet.length) label += ` (${eKunden.length - nochNichtGesendet.length} bereits gesendet)`;
+  if (fKunden.length > 0) label += (label ? ' + ' : '') + `📠 ${fKunden.length} Fax`;
+  btn.textContent = label + ' versenden';
+}
 
 async function emailMassenversand() {
   if (!_laufData) return;
   const cfg = JSON.parse(localStorage.getItem('emailcfg') || '{}');
   if (!cfg.resendKey) { toast('Erst Resend API-Key in Einstellungen hinterlegen', 'error'); return; }
 
-  // Nur Kunden mit Funktion=E, E-Mail und Rechnungsnummer
-  const kunden = Object.values(_laufData.kunden).filter(k => {
+  // Kunden mit Funktion=E → E-Mail
+  const eKunden = Object.values(_laufData.kunden).filter(k => {
     const fn = (k.orfunktion || '').trim().toUpperCase();
     return fn === 'E' && k.email && k.rechnungsnr;
   });
 
-  if (!kunden.length) { toast('Keine Kunden mit E-Mail-Versand (Funktion=E) und Rechnungsnummer gefunden', 'error'); return; }
+  // Kunden mit Funktion=F → Fax (manuell über fonial-Druckertreiber)
+  const fKunden = Object.values(_laufData.kunden).filter(k => {
+    const fn = (k.orfunktion || '').trim().toUpperCase();
+    return fn === 'F' && k.rechnungsnr;
+  });
 
-  const testMode = !!cfg.testEmail;
-  const msg = testMode
-    ? `${kunden.length} E-Mails im TEST-MODUS versenden?\n(alle gehen an ${cfg.testEmail})\n\nKunden: ${kunden.map(k=>k.name).join(', ')}`
-    : `${kunden.length} E-Mails jetzt wirklich versenden?\n\nKunden: ${kunden.map(k=>k.name).join(', ')}`;
-  if (!confirm(msg)) return;
-
-  const prog = document.getElementById('lauf-progress');
-  const progText = document.getElementById('lauf-progress-text');
-  const progBar = document.getElementById('lauf-progress-bar');
-  prog.style.display = 'block';
-  document.getElementById('btn-email-versand').disabled = true;
-
-  let done = 0, fehler = 0;
-  for (const k of kunden) {
-    progText.textContent = `📧 ${done+1}/${kunden.length}: ${k.name} (Re. ${k.rechnungsnr})`;
-    progBar.style.width = `${Math.round((done/kunden.length)*100)}%`;
-    try {
-      await sendEmail(k.kundennr, _laufData.von, _laufData.bis, k.rechnungsnr);
-      done++;
-    } catch(e) {
-      fehler++;
-      console.error(`Email-Fehler KD ${k.kundennr}:`, e);
-    }
-    // Kurze Pause zwischen E-Mails
-    await new Promise(r => setTimeout(r, 500));
+  if (!eKunden.length && !fKunden.length) {
+    toast('Keine Kunden mit E-Mail (Funktion=E) oder Fax (Funktion=F) und Rechnungsnummer gefunden', 'error');
+    return;
   }
 
-  progBar.style.width = '100%';
-  progText.textContent = `✓ E-Mail-Versand abgeschlossen — ${done} gesendet${fehler ? ', ' + fehler + ' Fehler' : ''}`;
-  document.getElementById('btn-email-versand').disabled = false;
-  toast(`E-Mail-Versand: ${done} gesendet${fehler ? ', ' + fehler + ' Fehler' : ''}`, fehler ? 'error' : 'success');
+  // ── 1. E-MAILS ZUERST ───────────────────────────────────────
+  if (eKunden.length > 0) {
+    const testMode = !!cfg.testEmail;
+
+    // Prüfen ob bereits E-Mails versendet wurden
+    const bereitsGesendet = eKunden.filter(k => k.email_sent_at);
+    let warnText = '';
+    if (bereitsGesendet.length > 0) {
+      const namen = bereitsGesendet.map(k => {
+        const dt = new Date(k.email_sent_at);
+        const dtStr = dt.toLocaleDateString('de', {day:'2-digit',month:'2-digit',year:'numeric'})
+                    + ' ' + dt.toLocaleTimeString('de', {hour:'2-digit',minute:'2-digit'});
+        return `• ${k.name} (bereits gesendet: ${dtStr})`;
+      }).join('\n');
+      warnText = `⚠ ACHTUNG: ${bereitsGesendet.length} Rechnung(en) wurden bereits per E-Mail versendet:\n\n${namen}\n\nTrotzdem erneut versenden?\n\n`;
+    }
+
+    const msg = testMode
+      ? `${warnText}${eKunden.length} E-Mails im TEST-MODUS versenden?\n(alle gehen an ${cfg.testEmail})\n\nKunden: ${eKunden.map(k=>k.name).join(', ')}`
+      : `${warnText}${eKunden.length} E-Mails jetzt wirklich versenden?\n\nKunden: ${eKunden.map(k=>k.name).join(', ')}`;
+    if (!confirm(msg)) return;
+
+    const prog = document.getElementById('lauf-progress');
+    const progText = document.getElementById('lauf-progress-text');
+    const progBar = document.getElementById('lauf-progress-bar');
+    prog.style.display = 'block';
+    document.getElementById('btn-email-versand').disabled = true;
+
+    const emailLog = [];
+    let done = 0, fehler = 0;
+    for (const k of eKunden) {
+      progText.textContent = `📧 ${done+1}/${eKunden.length}: ${k.name} (Re. ${k.rechnungsnr})`;
+      progBar.style.width = `${Math.round((done/eKunden.length)*100)}%`;
+      try {
+        await sendEmail(k.kundennr, _laufData.von, _laufData.bis, k.rechnungsnr);
+        emailLog.push(`✓ ${k.name} (Re. ${k.rechnungsnr}) → ${k.email}`);
+        // _laufData sofort aktualisieren damit Tabelle live updatet
+        if (_laufData?.kunden?.[k.kundennr]) {
+          _laufData.kunden[k.kundennr].email_sent_at = new Date().toISOString();
+        }
+        done++;
+      } catch(e) {
+        emailLog.push(`✗ ${k.name} (Re. ${k.rechnungsnr}) → FEHLER: ${e.message}`);
+        fehler++;
+        console.error(`Email-Fehler KD ${k.kundennr}:`, e);
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    progBar.style.width = '100%';
+    progText.textContent = `✓ E-Mail-Versand abgeschlossen — ${done} gesendet${fehler ? ', ' + fehler + ' Fehler' : ''}`;
+    document.getElementById('btn-email-versand').disabled = false;
+    toast(`E-Mail-Versand: ${done} gesendet${fehler ? ', ' + fehler + ' Fehler' : ''}`, fehler ? 'error' : 'success');
+
+    // Tabellen neu rendern damit Sendedaten sichtbar werden
+    renderLaufTabelle('sepa');
+    renderLaufTabelle('rechnung');
+    // Button-Status aktualisieren
+    updateEmailButton();
+
+    // Log anzeigen
+    const logText = emailLog.join('\n');
+    const logDiv = document.getElementById('lauf-email-log');
+    if (logDiv) {
+      logDiv.style.display = 'block';
+      logDiv.innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text2);">📋 E-Mail-Protokoll</div>` +
+        emailLog.map(l => `<div style="font-size:11px;font-family:var(--mono);padding:2px 0;color:${l.startsWith('✓')?'var(--green)':'var(--red)'}">${l}</div>`).join('');
+    }
+  }
+
+  // ── 2. FAX DANACH ────────────────────────────────────────────
+  if (fKunden.length > 0) {
+    const faxNamen = fKunden.map(k => `• ${k.name} (Re. ${k.rechnungsnr})`).join('\n');
+    alert(`📠 ${fKunden.length} Rechnung(en) bitte per Fax versenden:\n\n${faxNamen}\n\nDie PDF(s) werden jetzt geöffnet — bitte über den fonial-Druckertreiber faxen.`);
+    for (const k of fKunden) {
+      await laufPDF(k.kundennr);
+      await new Promise(r => setTimeout(r, 800));
+    }
+    toast(`${fKunden.length} Fax-PDF(s) geöffnet`, 'success');
+  }
 }
 
 async function laufPDF(kundennr) {
@@ -5707,6 +6015,8 @@ async function saveSepaMandat() {
     _editMandatId = null;
     closeModal('modal-sepa');
     loadSepaMandate();
+    // Kunden-Detail neu laden falls gerade ein Kunde angezeigt wird
+    if (_kdNr) openKundeDetail(_kdNr);
   } catch(e) { toast('Fehler: ' + e.message, 'error'); }
 }
 
@@ -5831,13 +6141,16 @@ async function refreshDashboard() {
     const von = `${y}-${m}-01`;
     const bis = now.toISOString().slice(0,10);
 
-    const [monatDaten, recent] = await Promise.all([
+    const [monatDaten, recent, kundenFuerDashboard] = await Promise.all([
       sbFetch(`tankungen?hidatum=gte.${von}&hidatum=lte.${bis}&select=hipreis,zahltyp`, {
         headers: { 'Prefer': 'return=representation' }
       }),
-      sbFetch('tankungen?order=hidatum.desc,hizeit.desc&limit=10', {
+      sbFetch('tankungen?order=hidatum.desc,hizeit.desc&limit=100&select=hidatum,hizeit,hiartbez,kundennr,hipreis,zahltyp,himenge', {
         headers: { 'Prefer': 'return=representation' }
-      })
+      }),
+      state.data.kunden.length
+        ? Promise.resolve(state.data.kunden)
+        : sbFetch('kunden?select=kundennr,name&order=name', { headers: { 'Prefer': 'return=representation' } })
     ]);
 
     // Umsatz lfd. Monat
@@ -5870,15 +6183,31 @@ async function refreshDashboard() {
     // Letzte Tankungen Tabelle
     const recentEl = document.getElementById('recent-tankungen');
     if (recent?.length) {
-      recentEl.innerHTML = `<table style="width:100%"><tbody>
-        ${recent.map(t => `<tr>
-          <td class="mono" style="font-size:12px;padding:5px 8px;">${(t.hidatum||'').split('-').reverse().join('.')}</td>
-          <td style="padding:5px 8px;font-size:12px;">${t.hiartbez||''}</td>
-          <td class="muted" style="padding:5px 8px;font-size:12px;font-family:var(--mono);">KD ${t.kundennr||'—'}</td>
-          <td class="right mono" style="padding:5px 8px;font-size:12px;color:var(--accent);">${fmt(t.hipreis)} €</td>
-          <td style="padding:5px 8px;">${getZahltyp(null,t.zahltyp).badge}</td>
-        </tr>`).join('')}
-      </tbody></table>`;
+      const kdMap = {};
+      for (const k of (kundenFuerDashboard || [])) kdMap[k.kundennr] = k.name;
+      recentEl.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="position:sticky;top:0;z-index:1;background:var(--bg2);">
+          <th style="text-align:left;padding:5px 8px;font-size:11px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Datum</th>
+          <th style="text-align:left;padding:5px 8px;font-size:11px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Produkt</th>
+          <th style="text-align:left;padding:5px 8px;font-size:11px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Kunde</th>
+          <th style="text-align:right;padding:5px 8px;font-size:11px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Betrag</th>
+          <th style="padding:5px 8px;border-bottom:1px solid var(--border);"></th>
+        </tr></thead>
+        <tbody>
+        ${recent.map((t,i) => {
+          const name = t.kundennr && kdMap[t.kundennr]
+            ? `<a href="#" onclick="openKundeByNr(${t.kundennr});return false;" style="color:var(--accent2);">${kdMap[t.kundennr]}</a>`
+            : `<span style="color:var(--text3);">—</span>`;
+          const rowBg = i % 2 === 0 ? '' : 'background:rgba(255,255,255,0.02);';
+          return `<tr style="border-bottom:1px solid var(--border);${rowBg}">
+            <td class="mono" style="font-size:11px;padding:5px 8px;white-space:nowrap;">${(t.hidatum||'').split('-').reverse().join('.')}</td>
+            <td style="padding:5px 8px;font-size:12px;">${t.hiartbez||''}</td>
+            <td style="padding:5px 8px;font-size:12px;">${name}</td>
+            <td class="right mono" style="padding:5px 8px;font-size:12px;color:var(--accent);">${fmt(t.hipreis)} €</td>
+            <td style="padding:5px 8px;">${getZahltyp(null,t.zahltyp).badge}</td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>`;
     } else {
       recentEl.innerHTML = '<div class="empty-state" style="padding:30px 0"><div class="empty-sub">Noch keine Daten importiert</div></div>';
     }
@@ -5925,28 +6254,29 @@ function renderTop25() {
   }));
 
   rows.sort((a, b) => (b[sortKey] || 0) - (a[sortKey] || 0));
-  const top25 = rows.slice(0, 25);
+  const top100 = rows.slice(0, 100);
 
-  const maxVal = top25[0]?.[sortKey] || 1;
+  const maxVal = top100[0]?.[sortKey] || 1;
   const fe = v => v.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
   const fl = v => v.toLocaleString('de-DE',{minimumFractionDigits:0,maximumFractionDigits:0})+' L';
 
   document.getElementById('top25-body').innerHTML = `
     <table style="width:100%;border-collapse:collapse;font-size:12px;">
-      <thead><tr>
-        <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);width:28px;">#</th>
-        <th style="text-align:left;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Kunde</th>
-        <th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Umsatz €</th>
-        <th style="text-align:right;padding:4px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Liter</th>
-        <th style="padding:4px 8px;border-bottom:1px solid var(--border);width:120px;"></th>
+      <thead><tr style="position:sticky;top:0;z-index:1;background:var(--bg2);">
+        <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);width:28px;">#</th>
+        <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Kunde</th>
+        <th style="text-align:right;padding:6px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Umsatz €</th>
+        <th style="text-align:right;padding:6px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);">Liter</th>
+        <th style="padding:6px 8px;border-bottom:1px solid var(--border);width:120px;"></th>
       </tr></thead>
-      <tbody>${top25.map((k, i) => {
+      <tbody>${top100.map((k, i) => {
         const euro  = k[euroKey]  || 0;
         const liter = k[literKey] || 0;
         const barW  = Math.round((k[sortKey] / maxVal) * 100);
-        return `<tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:5px 8px;color:var(--text3);font-family:var(--mono);">${i+1}</td>
-          <td style="padding:5px 8px;"><span style="cursor:pointer;color:var(--text1);" onclick="openKundeByNr(${k.kundennr})">${k.name}</span></td>
+        const rowBg = i % 2 === 0 ? '' : 'background:rgba(255,255,255,0.02);';
+        return `<tr style="border-bottom:1px solid var(--border);${rowBg}">
+          <td style="padding:5px 8px;color:var(--text3);font-family:var(--mono);font-size:11px;">${i+1}</td>
+          <td style="padding:5px 8px;"><a href="#" onclick="openKundeByNr(${k.kundennr});return false;" style="color:var(--accent2);">${k.name}</a></td>
           <td style="padding:5px 8px;text-align:right;font-family:var(--mono);color:var(--accent);">${fe(euro)}</td>
           <td style="padding:5px 8px;text-align:right;font-family:var(--mono);color:var(--text2);">${fl(liter)}</td>
           <td style="padding:5px 8px;">
@@ -6280,37 +6610,61 @@ async function exportAllPDF(tab) {
 // ============================================================
 // RECHNUNGSNUMMER — aus Supabase, niemals doppelt
 // ============================================================
+async function getMaxRechnungsnr() {
+  // Gibt die aktuell höchste vergebene Rechnungsnummer zurück
+  // Prüft BEIDE Tabellen und nimmt das Maximum
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER };
+  let maxNr = 24754;
+
+  // MAX aus tankungen — ORDER BY als Integer (cast über Text-Länge + lex. Sort ist sicher bei gleicher Länge)
+  const [r1, r2] = await Promise.all([
+    fetch(`${_SBURL}/rest/v1/tankungen?select=rechnungsnr&rechnungsnr=not.is.null&order=rechnungsnr.desc&limit=1`, { headers: h }),
+    fetch(`${_SBURL}/rest/v1/rechnungen?select=rechnungsnr&order=rechnungsnr.desc&limit=1`, { headers: h })
+  ]);
+  const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+
+  if (Array.isArray(d1) && d1[0]?.rechnungsnr) {
+    const n = parseInt(d1[0].rechnungsnr);
+    if (!isNaN(n) && n > maxNr) maxNr = n;
+  }
+  if (Array.isArray(d2) && d2[0]?.rechnungsnr) {
+    const n = parseInt(d2[0].rechnungsnr);
+    if (!isNaN(n) && n > maxNr) maxNr = n;
+  }
+  return maxNr;
+}
+
+async function rechnungsnrExistiert(nr) {
+  // Prüft ob eine bestimmte Nummer bereits vergeben ist (in beiden Tabellen)
+  const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'count=exact', 'Range': '0-0' };
+  const nrStr = String(nr);
+  const [r1, r2] = await Promise.all([
+    fetch(`${_SBURL}/rest/v1/tankungen?rechnungsnr=eq.${nrStr}&select=id&limit=1`, { headers: h }),
+    fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${nrStr}&select=rechnungsnr&limit=1`, { headers: h })
+  ]);
+  const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+  return (Array.isArray(d1) && d1.length > 0) || (Array.isArray(d2) && d2.length > 0);
+}
+
 async function getNextRechnungsnr() {
   try {
-    const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-0' };
-    // Alle rechnungsnr laden und numerisches Maximum finden
-    const r2 = await fetch(
-      `${_SBURL}/rest/v1/tankungen?select=rechnungsnr&rechnungsnr=not.is.null`,
-      { headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-99999' } }
-    );
-    const d2 = await r2.json();
-    let maxNr = 24754;
-    if (Array.isArray(d2)) {
-      for (const row of d2) {
-        const n = parseInt(row.rechnungsnr);
-        if (!isNaN(n) && n > maxNr) maxNr = n;
+    let kandidat = (await getMaxRechnungsnr()) + 1;
+    // Sicherheitsschleife: solange prüfen bis eine wirklich freie Nummer gefunden ist
+    let versuche = 0;
+    while (versuche < 20) {
+      const belegt = await rechnungsnrExistiert(kandidat);
+      if (!belegt) {
+        logImport && logImport(`[Re.-Nr.] Nächste freie Nummer: ${kandidat}`);
+        return kandidat;
       }
+      logImport && logImport(`[Re.-Nr.] ${kandidat} bereits vergeben — prüfe ${kandidat + 1}`);
+      kandidat++;
+      versuche++;
     }
-    // Auch aus rechnungen-Tabelle
-    const r1 = await fetch(
-      `${_SBURL}/rest/v1/rechnungen?select=rechnungsnr&order=rechnungsnr.desc&limit=1`,
-      { headers: h }
-    );
-    const d1 = await r1.json();
-    if (Array.isArray(d1) && d1[0]?.rechnungsnr) {
-      const n = parseInt(d1[0].rechnungsnr);
-      if (!isNaN(n) && n > maxNr) maxNr = n;
-    }
-    logImport && logImport(`[PDF] Letzte Rechnungsnr: ${maxNr} → nächste: ${maxNr + 1}`);
-    return maxNr + 1;
+    throw new Error('Keine freie Rechnungsnummer gefunden nach 20 Versuchen');
   } catch(e) {
-    const fallback = parseInt(localStorage.getItem('last_rechnungsnr') || '24754');
-    return fallback + 1;
+    toast('Fehler bei Rechnungsnummer-Vergabe: ' + e.message, 'error');
+    throw e;
   }
 }
 
@@ -6660,11 +7014,24 @@ async function generatePDF(kundennr, typ, periode) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(0,0,0);
-      doc.text(kundeName, ml, 62);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      if (kundeStrasse) doc.text(kundeStrasse, ml, 69);
-      if (kundeOrt) doc.text(kundeOrt, ml, 76);
+      // Langen Namen umbrechen wenn er nicht passt (max. ~85mm bis zur Box)
+      const maxNameBreite = 85;
+      const nameBreite = doc.getTextWidth(kundeName);
+      if (nameBreite > maxNameBreite) {
+        const nameZeilen = doc.splitTextToSize(kundeName, maxNameBreite);
+        doc.text(nameZeilen, ml, 62);
+        const nameOffset = (nameZeilen.length - 1) * 6;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        if (kundeStrasse) doc.text(kundeStrasse, ml, 69 + nameOffset);
+        if (kundeOrt) doc.text(kundeOrt, ml, 76 + nameOffset);
+      } else {
+        doc.text(kundeName, ml, 62);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        if (kundeStrasse) doc.text(kundeStrasse, ml, 69);
+        if (kundeOrt) doc.text(kundeOrt, ml, 76);
+      }
 
       // Rechnungs-Box — größer und tiefer
       const bx = 115, by = 48, bw = 80, bh = 42;
@@ -6767,7 +7134,7 @@ async function generatePDF(kundennr, typ, periode) {
       pageNum++;
       doc.addPage();
       drawHeader(false);
-      y = 42;
+      y = 52;
       y = drawColHeaders(y);
     }
 
@@ -6785,7 +7152,7 @@ async function generatePDF(kundennr, typ, periode) {
         pageNum++;
         doc.addPage();
         drawHeader(false);
-        y = 42;
+        y = 52;
         y = drawColHeaders(y);
       }
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(0,0,0);
@@ -6801,7 +7168,7 @@ async function generatePDF(kundennr, typ, periode) {
   }
 
   // ── SUMMEN ───────────────────────────────────────────────────
-  if (y > pageBreakY - 25) { pageNum++; doc.addPage(); drawHeader(false); y = 42; }
+  if (y > pageBreakY - 25) { pageNum++; doc.addPage(); drawHeader(false); y = 52; }
 
   doc.setLineWidth(0.3); doc.setDrawColor(0);
   doc.line(C.produkt, y, mr, y); y += 5;
@@ -6927,7 +7294,10 @@ async function generatePDF(kundennr, typ, periode) {
       window._pdfXmlBase64 = null;
     }
   } else {
-    doc.save(fname);
+    // Im Browser öffnen statt herunterladen
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
   }
 
   // Rechnungsnr in DB speichern
@@ -7657,6 +8027,31 @@ async function rechnungenLaden() {
     const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER };
     const pageSize = 1000;
 
+    // Jahr-Filter initialisieren (beim ersten Aufruf)
+    const jahrSel = document.getElementById('rech-filter-jahr');
+    if (!jahrSel.options.length) {
+      const curYear = new Date().getFullYear();
+      for (let y = curYear; y >= curYear - 5; y--) {
+        const opt = document.createElement('option');
+        opt.value = y; opt.textContent = y;
+        if (y === curYear) opt.selected = true;
+        jahrSel.appendChild(opt);
+      }
+      const optAll = document.createElement('option');
+      optAll.value = ''; optAll.textContent = 'Alle Jahre';
+      jahrSel.appendChild(optAll);
+    }
+
+    const jahr = jahrSel.value;
+    const nrVon = document.getElementById('rech-nr-von')?.value;
+    const nrBis = document.getElementById('rech-nr-bis')?.value;
+
+    // Filter-Parameter für rechnungen-Tabelle aufbauen
+    let rechParams = 'select=*&order=rechnungsnr.desc';
+    if (jahr) rechParams += `&periode_von=gte.${jahr}-01-01&periode_von=lte.${jahr}-12-31`;
+    if (nrVon) rechParams += `&rechnungsnr=gte.${nrVon}`;
+    if (nrBis) rechParams += `&rechnungsnr=lte.${nrBis}`;
+
     // Hilfsfunktion: alle Seiten laden
     async function fetchAll(path) {
       let all = [], offset = 0;
@@ -7675,12 +8070,17 @@ async function rechnungenLaden() {
       return all;
     }
 
-    // Parallel laden
+    // Parallel laden — tankungen nur für den gefilterten Zeitraum
+    let tankParams = 'tankungen?abgerechnet=eq.true&rechnungsnr=not.is.null&select=kundennr,rechnungsnr,himenge,hipreis,zahltyp,hidatum,abgerechnet_am&order=rechnungsnr.asc';
+    if (jahr) tankParams += `&hidatum=gte.${jahr}-01-01&hidatum=lte.${jahr}-12-31`;
+    if (nrVon) tankParams += `&rechnungsnr=gte.${nrVon}`;
+    if (nrBis) tankParams += `&rechnungsnr=lte.${nrBis}`;
+
     const [tankungen, kunden, orte, rechDB] = await Promise.all([
-      fetchAll('tankungen?abgerechnet=eq.true&rechnungsnr=not.is.null&select=kundennr,rechnungsnr,himenge,hipreis,zahltyp,hidatum,abgerechnet_am&order=rechnungsnr.asc'),
+      fetchAll(tankParams),
       fetchAll('kunden?select=kundennr,name,ortid&order=name'),
       fetchAll('ort?select=ortid,ortname,plz&order=ortid'),
-      fetchAll('rechnungen?select=*&order=rechnungsnr.desc'),
+      fetchAll(`rechnungen?${rechParams}`),
     ]);
 
     // Lookup-Maps
@@ -7934,23 +8334,6 @@ function rechnungMenu(event, kundennr, von, bis, rechnungsnr) {
       document.removeEventListener('click', handler);
     });
   }, 100);
-}
-
-document.addEventListener('DOMContentLoaded', loadConfig);
-
-// Close modals on overlay click
-document.querySelectorAll('.modal-overlay').forEach(o => {
-  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('show'); });
-});
-</script>
-</body>
-</html>
-function rechnungPDFneu(kundennr, von, bis, rechnungsnr) {
-  if (typeof generatePDF === 'function') {
-    generatePDF(kundennr, 'rechnung', { von, bis, fixedRechnungsnr: rechnungsnr });
-  } else {
-    toast('PDF-Funktion nicht verfügbar', 'error');
-  }
 }
 
 document.addEventListener('DOMContentLoaded', loadConfig);
