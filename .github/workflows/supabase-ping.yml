@@ -14,5 +14,5 @@ jobs:
           curl -s \
             -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
-            "https://rkqdjswofqhzmrgvsnd.supabase.co/rest/v1/sepa_mandate?select=count&limit=1"
-          echo "Ping erfolgreich!"
+            "https://rrkqdjswofqhzmrgvsnd.supabase.co/rest/v1/sepa_mandate?select=count&limit=1"
+              echo "Ping erfolgreich!"
