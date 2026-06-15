@@ -3,6 +3,7 @@ name: Supabase Keep-Alive Ping
 on:
   schedule:
     - cron: '0 8 * * 1'  # Jeden Montag um 8 Uhr UTC
+    - cron: '0 8 * * 4'  # Jeden Donnerstag um 8 Uhr UTC
   workflow_dispatch:      # Manuell auslösbar
 
 jobs:
@@ -12,7 +13,7 @@ jobs:
       - name: Ping Supabase
         run: |
           curl -s \
-            -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
-            "https://rrkqdjswofqhzmrgvsnd.supabase.co/rest/v1/sepa_mandate?select=count&limit=1"
-              echo "Ping erfolgreich!"
+          -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
+          "https://rrkqdjswofqhzmrgvsnd.supabase.co/rest/v1/sepa_mandate?select=count&limit=1"
+          echo "Ping erfolgreich!"
