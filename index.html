@@ -2566,14 +2566,24 @@ async function loadConfig() {
   state.key = k;
   const cfgKeyEl = document.getElementById('cfg-key');
   if (cfgKeyEl) cfgKeyEl.value = k;
+  // Feste Fallback-Werte für SEPA (werden durch localStorage überschrieben wenn vorhanden)
+  const SEPA_DEFAULTS = {
+    glid:     'DE98ZZZ00155994',
+    firma:    'Runge & Görling GbR',
+    iban:     'DE90213900080007000510',
+    bic:      'GENODEF1NSH',
+    zahlziel: '14',
+    ec:       '19,502,505,507,508,530'
+  };
   const cfg = JSON.parse(localStorage.getItem('cfg') || '{}');
-  if (cfg.glid) document.getElementById('cfg-glid').value = cfg.glid;
-  if (cfg.firma) document.getElementById('cfg-firma').value = cfg.firma;
-  if (cfg.iban) document.getElementById('cfg-iban').value = cfg.iban;
-  if (cfg.bic) document.getElementById('cfg-bic').value = cfg.bic;
+  // Felder mit localStorage-Wert oder Fallback befüllen
+  document.getElementById('cfg-glid').value     = cfg.glid     || SEPA_DEFAULTS.glid;
+  document.getElementById('cfg-firma').value    = cfg.firma    || SEPA_DEFAULTS.firma;
+  document.getElementById('cfg-iban').value     = cfg.iban     || SEPA_DEFAULTS.iban;
+  document.getElementById('cfg-bic').value      = cfg.bic      || SEPA_DEFAULTS.bic;
+  document.getElementById('cfg-zahlziel').value = cfg.zahlziel || SEPA_DEFAULTS.zahlziel;
+  document.getElementById('cfg-ec').value       = cfg.ec       || SEPA_DEFAULTS.ec;
   if (cfg.inhaber) document.getElementById('cfg-inhaber').value = cfg.inhaber;
-  if (cfg.zahlziel) document.getElementById('cfg-zahlziel').value = cfg.zahlziel;
-  if (cfg.ec) document.getElementById('cfg-ec').value = cfg.ec;
 
   if (!k) {
     toast('Bitte API-Key in den Einstellungen hinterlegen', 'error');
