@@ -2567,7 +2567,8 @@ async function loadConfig() {
   const cfgKeyEl = document.getElementById('cfg-key');
   if (cfgKeyEl) cfgKeyEl.value = k;
   // Feste Fallback-Werte für SEPA (werden durch localStorage überschrieben wenn vorhanden)
-  const SEPA_DEFAULTS = {
+  // SEPA-Stammdaten — immer fest gesetzt, localStorage wird korrigiert
+  const SEPA_FIXED = {
     glid:     'DE35ZZZ00000155994',
     firma:    'J. Runge GmbH',
     iban:     'DE90213900080007000510',
@@ -2576,13 +2577,15 @@ async function loadConfig() {
     ec:       '19,502,505,507,508,530'
   };
   const cfg = JSON.parse(localStorage.getItem('cfg') || '{}');
-  // Felder mit localStorage-Wert oder Fallback befüllen
-  document.getElementById('cfg-glid').value     = cfg.glid     || SEPA_DEFAULTS.glid;
-  document.getElementById('cfg-firma').value    = cfg.firma    || SEPA_DEFAULTS.firma;
-  document.getElementById('cfg-iban').value     = cfg.iban     || SEPA_DEFAULTS.iban;
-  document.getElementById('cfg-bic').value      = cfg.bic      || SEPA_DEFAULTS.bic;
-  document.getElementById('cfg-zahlziel').value = cfg.zahlziel || SEPA_DEFAULTS.zahlziel;
-  document.getElementById('cfg-ec').value       = cfg.ec       || SEPA_DEFAULTS.ec;
+  // Feste Werte immer setzen (überschreiben veraltete localStorage-Werte)
+  Object.assign(cfg, SEPA_FIXED);
+  localStorage.setItem('cfg', JSON.stringify(cfg));
+  document.getElementById('cfg-glid').value     = SEPA_FIXED.glid;
+  document.getElementById('cfg-firma').value    = SEPA_FIXED.firma;
+  document.getElementById('cfg-iban').value     = SEPA_FIXED.iban;
+  document.getElementById('cfg-bic').value      = SEPA_FIXED.bic;
+  document.getElementById('cfg-zahlziel').value = SEPA_FIXED.zahlziel;
+  document.getElementById('cfg-ec').value       = SEPA_FIXED.ec;
   if (cfg.inhaber) document.getElementById('cfg-inhaber').value = cfg.inhaber;
 
   if (!k) {
