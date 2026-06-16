@@ -6168,7 +6168,14 @@ async function exportSEPA() {
   // Verwendet _laufData — gleiche Beträge wie Rechnung und Rechnungslauf-Tabelle
   if (!_laufData) { toast('Erst Kunden laden', 'error'); return; }
 
-  const cfg = JSON.parse(localStorage.getItem('cfg') || '{}');
+  // Direkt aus Feldern lesen (aktuell, auch ohne Speichern)
+  const cfg = {
+    glid:    document.getElementById('cfg-glid')?.value.trim()  || JSON.parse(localStorage.getItem('cfg') || '{}').glid    || '',
+    iban:    document.getElementById('cfg-iban')?.value.trim()  || JSON.parse(localStorage.getItem('cfg') || '{}').iban    || '',
+    bic:     document.getElementById('cfg-bic')?.value.trim()   || JSON.parse(localStorage.getItem('cfg') || '{}').bic     || '',
+    firma:   document.getElementById('cfg-firma')?.value.trim() || JSON.parse(localStorage.getItem('cfg') || '{}').firma   || '',
+    inhaber: document.getElementById('cfg-inhaber')?.value.trim()|| JSON.parse(localStorage.getItem('cfg') || '{}').inhaber|| '',
+  };
   if (!cfg.glid || !cfg.iban) { toast('Bitte SEPA-Daten in Einstellungen hinterlegen', 'error'); return; }
 
   // Nur SEPA-Kunden mit hinterlegtem Mandat
