@@ -6730,7 +6730,7 @@ async function refreshDashboard() {
       sbFetch(`tankungen?hidatum=gte.${von}&hidatum=lte.${bis}&select=hipreis,zahltyp`, {
         headers: { 'Prefer': 'return=representation' }
       }),
-      sbFetch('tankungen?order=hidatum.desc,hizeit.desc&limit=100&select=hidatum,hizeit,hiartbez,kundennr,hipreis,zahltyp,himenge', {
+      sbFetch('tankungen?order=hidatum.desc,hizeit.desc&limit=100&select=hidatum,hizeit,hiartbez,kundennr,hipreis,zahltyp,himenge,ausweis_nr,maident', {
         headers: { 'Prefer': 'return=representation' }
       }),
       state.data.kunden.length
@@ -6785,10 +6785,15 @@ async function refreshDashboard() {
             : `<span style="color:var(--text3);">—</span>`;
           const rowBg = i % 2 === 0 ? '' : 'background:rgba(255,255,255,0.02);';
           const zeit = t.hizeit ? t.hizeit.slice(0,5) : '';
+          const awNr = t.ausweis_nr || t.maident || '';
           return `<tr style="border-bottom:1px solid var(--border);${rowBg}">
             <td class="mono" style="font-size:11px;padding:5px 8px;white-space:nowrap;">${(t.hidatum||'').split('-').reverse().join('.')} ${zeit}</td>
             <td style="padding:5px 8px;font-size:12px;">${t.hiartbez||''}</td>
             <td style="padding:5px 8px;font-size:12px;">${name}</td>
+            <td style="padding:5px 8px;">
+              ${awNr ? `<a href="#" onclick="showPage('schluessel-kunden',document.querySelector('[onclick*=schluessel-kunden]'));setTimeout(()=>{document.getElementById('sk-ausweis-nr').value='${awNr}';skAusweisLookup();},400);return false;"
+                style="font-family:var(--mono);font-size:11px;color:var(--blue);text-decoration:none;" title="Alle Tankungen dieses Ausweises anzeigen">${awNr}</a>` : '—'}
+            </td>
             <td class="right mono" style="padding:5px 8px;font-size:12px;color:var(--accent);">${fmt(t.hipreis)} €</td>
             <td style="padding:5px 8px;">${getZahltyp(null,t.zahltyp).badge}</td>
           </tr>`;
