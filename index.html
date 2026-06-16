@@ -2603,14 +2603,16 @@ async function afterAuthInit() {
 function saveConfig() {
   const key = document.getElementById('cfg-key').value.trim();
   if (key) { state.key = key; localStorage.setItem('sb_key', key); }
+  // Bestehende Config laden und nur nicht-leere Felder überschreiben
+  const existing = JSON.parse(localStorage.getItem('cfg') || '{}');
   const cfg = {
-    glid: document.getElementById('cfg-glid').value,
-    firma: document.getElementById('cfg-firma').value,
-    iban: document.getElementById('cfg-iban').value,
-    bic: document.getElementById('cfg-bic').value,
-    inhaber: document.getElementById('cfg-inhaber').value,
-    zahlziel: document.getElementById('cfg-zahlziel').value,
-    ec: document.getElementById('cfg-ec').value
+    glid:    document.getElementById('cfg-glid').value.trim()    || existing.glid    || '',
+    firma:   document.getElementById('cfg-firma').value.trim()   || existing.firma   || '',
+    iban:    document.getElementById('cfg-iban').value.trim()    || existing.iban    || '',
+    bic:     document.getElementById('cfg-bic').value.trim()     || existing.bic     || '',
+    inhaber: (document.getElementById('cfg-inhaber')?.value || '').trim() || existing.inhaber || '',
+    zahlziel:document.getElementById('cfg-zahlziel').value       || existing.zahlziel|| '14',
+    ec:      document.getElementById('cfg-ec').value.trim()      || existing.ec      || '19,502,505,507,508,530'
   };
   localStorage.setItem('cfg', JSON.stringify(cfg));
   toast('Einstellungen gespeichert', 'success');
@@ -4635,15 +4637,15 @@ function saveEmailConfig() {
 
 function loadEmailConfig() {
   const cfg = JSON.parse(localStorage.getItem('emailcfg') || '{}');
-  // Defaults vorausfüllen
-  if (!cfg.resendKey) cfg.resendKey = 're_d16e9DND_57y7eYmuqyg3FDtXyA8uUFVG';
-  if (!cfg.from) cfg.from = 'onboarding@resend.dev';
+  // Defaults vorausfüllen — kein alter API-Key als Default
+  if (!cfg.from) cfg.from = 'info@runge-mineraloele.de';
   if (!cfg.replyTo) cfg.replyTo = 'michael.runge@runge-mineraloele.de';
-  if (!cfg.testEmail) cfg.testEmail = 'michael.runge@runge-mineraloele.de';
+  // testEmail leer lassen = echter Versand an Kunden
   if (cfg.resendKey) document.getElementById('cfg-resend-key').value = cfg.resendKey;
   if (cfg.from)      document.getElementById('cfg-resend-from').value = cfg.from;
   if (cfg.replyTo)   document.getElementById('cfg-resend-replyto').value = cfg.replyTo;
-  if (cfg.testEmail) document.getElementById('cfg-resend-test').value = cfg.testEmail;
+  // testEmail nur setzen wenn explizit gespeichert
+  if (cfg.testEmail !== undefined) document.getElementById('cfg-resend-test').value = cfg.testEmail;
 }
 
 async function testEmail() {
