@@ -2451,7 +2451,37 @@ async function checkSupabaseStatus() {
   }
 }
 // Status prüfen sobald Login-Seite sichtbar ist
-document.addEventListener('DOMContentLoaded', checkSupabaseStatus);
+document.addEventListener('DOMContentLoaded', () => {
+  checkSupabaseStatus();
+  handleAuthRedirect();
+});
+
+// Verarbeitet Magic-Link und Password-Reset Token aus der URL
+async function handleAuthRedirect() {
+  const hash = window.location.hash;
+  if (!hash) return;
+  const params = new URLSearchParams(hash.substring(1));
+  const accessToken = params.get('access_token');
+  const refreshToken = params.get('refresh_token');
+  const type = params.get('type'); // 'magiclink', 'recovery', etc.
+  const error = params.get('error');
+
+  if (error) {
+    // Fehler aus URL entfernen
+    history.replaceState(null, '', window.location.pathname);
+    return;
+  }
+
+  if (accessToken) {
+    // Token in sessionStorage speichern wie beim normalen Login
+    sessionStorage.setItem('sb_access_token', accessToken);
+    if (refreshToken) sessionStorage.setItem('sb_refresh_token', refreshToken);
+    // URL bereinigen
+    history.replaceState(null, '', window.location.pathname);
+    // Warten bis loadConfig fertig ist, dann einloggen
+    window._pendingAuthToken = { accessToken, refreshToken };
+  }
+}
 
 // EC-Ausweisnummern (MAAWNR — sichtbare Ausweisnummer, NICHT die interne MAIDENT!)
 const EC_MAIDENT = [19, 502, 505, 507, 508, 530];
@@ -2567,6 +2597,27 @@ async function doLogout() {
 }
 
 async function tryRestoreSession() {
+  // Magic-Link / Password-Reset Token aus URL verarbeiten
+  if (window._pendingAuthToken) {
+    const { accessToken, refreshToken } = window._pendingAuthToken;
+    window._pendingAuthToken = null;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: { 'apikey': state.key, 'Authorization': 'Bearer ' + accessToken }
+      });
+      if (res.ok) {
+        const userData = await res.json();
+        state.authToken = accessToken;
+        state.refreshToken = refreshToken || '';
+        state.userEmail = userData.email;
+        sessionStorage.setItem('sb_access_token', accessToken);
+        if (refreshToken) sessionStorage.setItem('sb_refresh_token', refreshToken);
+        sessionStorage.setItem('sb_user_email', userData.email);
+        return true;
+      }
+    } catch(e) {}
+  }
+
   const token = sessionStorage.getItem('sb_access_token');
   const email = sessionStorage.getItem('sb_user_email');
   if (!token) return false;
