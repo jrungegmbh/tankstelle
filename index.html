@@ -10553,8 +10553,9 @@ async function sepaBerichtPDF() {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
   const ml = 15, mr = 195, H = 297;
-  // Spalten für A4 hochkant (Gesamtbreite 180mm)
-  const C = { nr: ml, name: ml + 8, ort: ml + 60, manda: ml + 95, iban: ml + 118, betrag: mr - 18, renr: mr };
+  // Spalten für A4 hochkant — Reihenfolge: Nr, Name, Ort, Mandatsref., IBAN, Betrag (rechtsb.), Re.-Nr. (rechtsb.)
+  // Abstände so gewählt, dass eine volle IBAN (34mm bei Schriftgröße 7) nie mit dem rechtsbündigen Betrag kollidiert.
+  const C = { nr: ml, name: ml + 8, ort: ml + 54, manda: ml + 84, iban: ml + 102, betrag: ml + 155, renr: mr };
 
   const cfgSepa = JSON.parse(localStorage.getItem('cfg') || '{}');
   const monate_lang = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
@@ -10627,8 +10628,8 @@ async function sepaBerichtPDF() {
     summe += r.betrag;
     doc.setTextColor(0);
     doc.text(String(i+1), C.nr, y);
-    doc.text((r.name||'').substring(0, 32), C.name, y);
-    doc.text((r.ort||'').substring(0, 20), C.ort, y);
+    doc.text((r.name||'').substring(0, 30), C.name, y);
+    doc.text((r.ort||'').substring(0, 18), C.ort, y);
     doc.text(r.mandatsreferenz||'', C.manda, y);
     doc.setFontSize(7);
     doc.text(r.iban||'', C.iban, y);
@@ -10649,7 +10650,7 @@ async function sepaBerichtPDF() {
   drawFooter(page, totalPages);
 
   const dateiname = `SEPA-Bericht_${_sepaBerichtMeta.von}_${_sepaBerichtMeta.bis}.pdf`;
-  doc.save(dateiname);
+  window.open(URL.createObjectURL(doc.output('blob')), '_blank');
   toast('PDF erstellt', 'success');
 }
 
