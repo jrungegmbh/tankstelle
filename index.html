@@ -2238,6 +2238,10 @@
         <div id="lauf-warn" style="display:none; background:#2a1010; border:1px solid var(--red);
           border-radius:6px; padding:10px 16px; margin-bottom:16px; font-size:12px; color:var(--red);"></div>
 
+        <!-- Fax-Kunden-Status (immer sichtbar, damit kein Fax-Kunde übersehen wird) -->
+        <div id="lauf-fax-status" style="display:none; background:rgba(74,158,255,0.08); border:1px solid var(--blue);
+          border-radius:6px; padding:10px 16px; margin-bottom:16px;"></div>
+
         <!-- Summen-Übersicht -->
         <div id="lauf-summen" style="display:none; margin-bottom:16px;">
           <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
@@ -5770,10 +5774,39 @@ function setLaufPeriod(von, bis) {
   // _laufData nur zurücksetzen wenn sich der Zeitraum wirklich ändert
   if (vonEl.value !== von || bisEl.value !== bis) {
     _laufData = null;
+    const faxEl = document.getElementById('lauf-fax-status');
+    if (faxEl) faxEl.style.display = 'none';
   }
   vonEl.value = von;
   bisEl.value = bis;
   document.getElementById('btn-lauf-reset').style.display = 'inline-block';
+}
+
+// Fax-Kunden-Status: zeigt IMMER alle als Fax markierten Kunden und ob sie in der
+// aktuell geladenen Periode enthalten sind — damit keiner übersehen/vergessen wird,
+// da der Faxversand (im Gegensatz zu Email) nicht automatisch passiert.
+function renderFaxStatus() {
+  const el = document.getElementById('lauf-fax-status');
+  if (!el) return;
+  if (!_laufData || !state.data.kunden || !state.data.kunden.length) { el.style.display = 'none'; return; }
+
+  const faxKunden = state.data.kunden.filter(k => {
+    const fn = ((k.versand_override && k.versand_override.trim()) || k.ort?.orfunktion || '').trim().toUpperCase();
+    return fn.includes('F');
+  });
+
+  if (!faxKunden.length) { el.style.display = 'none'; return; }
+
+  el.style.display = 'block';
+  el.innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--blue);">📠 Fax-Kunden — Status für ${fmtDatum(_laufData.von)} – ${fmtDatum(_laufData.bis)}</div>` +
+    faxKunden.map(k => {
+      const eintrag = _laufData.kunden[k.kundennr];
+      if (eintrag) {
+        return `<div style="font-size:12px;color:var(--green);padding:2px 0;">✓ <strong>${k.name}</strong> — enthalten, ${fmt(eintrag.total)} €${eintrag.rechnungsnr ? ' · Re. ' + eintrag.rechnungsnr : ' · noch keine Re.-Nr.'}</div>`;
+      } else {
+        return `<div style="font-size:12px;color:var(--text3);padding:2px 0;">— <strong>${k.name}</strong> — keine Tankung in diesem Zeitraum, nichts zu faxen</div>`;
+      }
+    }).join('');
 }
 
 async function laufLaden() {
@@ -5950,6 +5983,7 @@ async function laufLaden() {
     renderLaufTabelle('sepa');
     renderLaufTabelle('rechnung');
     renderLaufTabelle('eigen');
+    renderFaxStatus();
 
     toast(`${tankungen_gefiltert.length} offene Tankungen für ${Object.keys(kunden).length} Kunden geladen`, 'success');
   } catch(e) { toast('Fehler: ' + e.message, 'error'); }
@@ -6073,6 +6107,7 @@ async function laufWiederherstellen(von, bis) {
     renderLaufTabelle('sepa');
     renderLaufTabelle('rechnung');
     renderLaufTabelle('eigen');
+    renderFaxStatus();
 
     // E-Mail-Button Status aktualisieren
     updateEmailButton();
@@ -6396,15 +6431,13 @@ function updateEmailButton() {
     const fn = (k.orfunktion || '').trim().toUpperCase();
     return fn.includes('F') && k.rechnungsnr;
   });
-  // Direktdruck: explizit mit D markiert, ODER (Rückfallebene für unmarkierte Kunden)
-  // hat weder Email- noch Fax-Kennzeichnung — fällt sonst komplett durchs Raster.
+  // Direktdruck: nur noch explizit mit D markierte Kunden (Fallback für unmarkierte
+  // Kunden entfernt — durch CC-Email an die Buchhaltung nicht mehr nötig).
   // Reine Rechnungskunden haben ihre eigene Liste/eigenen Sammel-Druck weiter unten.
   const dKunden = alleKunden.filter(k => {
     if (!k.rechnungsnr || k.zahltyp === 'rechnung') return false;
     const fn = (k.orfunktion || '').trim().toUpperCase();
-    const istEmail = fn.includes('E') && k.email;
-    const istFax = fn.includes('F');
-    return fn.includes('D') || (!istEmail && !istFax);
+    return fn.includes('D');
   });
 
   // Button nur anzeigen wenn:
@@ -6442,16 +6475,13 @@ async function emailMassenversand() {
     return fn.includes('F') && k.rechnungsnr;
   });
 
-  // Direktdruck: explizit mit D markiert (auch kombiniert, z.B. "ED" = Email UND Druck),
-  // ODER als Rückfallebene alle unmarkierten SEPA/Eigen-Kunden ohne Email/Fax-Weg —
-  // müssen hier vor Ort ausgedruckt und manuell verschickt werden. Reine Rechnungskunden
-  // (zahltyp=rechnung) haben ihre eigene Liste/eigenen Sammel-Druck im "Auf Rechnung"-Tab.
+  // Direktdruck: nur noch explizit mit D markierte Kunden (auch kombiniert, z.B. "ED").
+  // Fallback für unmarkierte Kunden entfernt — durch CC-Email an die Buchhaltung nicht mehr nötig.
+  // Reine Rechnungskunden (zahltyp=rechnung) haben ihre eigene Liste/eigenen Sammel-Druck im "Auf Rechnung"-Tab.
   const dKunden = Object.values(_laufData.kunden).filter(k => {
     if (!k.rechnungsnr || k.zahltyp === 'rechnung') return false;
     const fn = (k.orfunktion || '').trim().toUpperCase();
-    const istEmail = fn.includes('E') && k.email;
-    const istFax = fn.includes('F');
-    return fn.includes('D') || (!istEmail && !istFax);
+    return fn.includes('D');
   });
 
   if (!eKunden.length && !fKunden.length && !dKunden.length) {
