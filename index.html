@@ -9188,7 +9188,7 @@ async function eigenverbrauchAdBluePDF() {
     doc.text(String(r.kostenstelle??'0'), C.ks, y);
     doc.text(fmtMenge(r.menge)+' Ltr.', C.menge, y);
     doc.text(ekPreis ? ekPreis.toFixed(2).replace('.',',')+' €' : '—', C.ek, y);
-    doc.text(r.euro != null ? fmtEuro(r.euro)+' €' : '—', C.betrag, y);
+    doc.text(r.euro != null ? fmtEuro(r.euro) : '—', C.betrag, y);
     doc.setTextColor(80,80,80);
     doc.text(pct, C.pct, y+4.5, { align:'right' });
     doc.setTextColor(0,0,0);
@@ -9645,12 +9645,12 @@ async function ecMonatLaden() {
           <td>${prod}</td>
           <td style="text-align:center;font-family:var(--mono);">${datStr}</td>
           <td style="text-align:right;font-family:var(--mono);">${fmtMenge(g.menge)}</td>
-          <td style="text-align:right;font-family:var(--mono);">${fmtEuro(g.euro)} €</td>
+          <td style="text-align:right;font-family:var(--mono);">${fmtEuro(g.euro)}</td>
         </tr>`;
       }).join('');
 
       document.getElementById(`ec-${id}-tfoot-menge`).textContent = fmtMenge(sumMenge);
-      document.getElementById(`ec-${id}-tfoot-euro`).textContent  = fmtEuro(sumEuro) + ' €';
+      document.getElementById(`ec-${id}-tfoot-euro`).textContent  = fmtEuro(sumEuro);
       document.getElementById(`ec-${id}-tfoot`).style.display = '';
       document.getElementById(`ec-${id}-sum-menge`).textContent = fmtMenge(sumMenge);
       document.getElementById(`ec-${id}-sum-euro`).textContent  = fmtEuro(sumEuro);
@@ -9770,7 +9770,7 @@ async function ecMonatPDF() {
       doc.text(prod,                 C.bezeichnung, y);
       doc.text(datStr,               C.datum,       y);
       doc.text(fmtMenge(g.menge),    C.menge,       y, { align: 'right' });
-      doc.text(fmtEuro(g.euro)+' €', C.euro,        y, { align: 'right' });
+      doc.text(fmtEuro(g.euro), C.euro,        y, { align: 'right' });
       y += 6;
     });
 
@@ -9781,7 +9781,7 @@ async function ecMonatPDF() {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(0);
     doc.text(`Gesamt ${prod}`,              C.datum,  y);
     doc.text(fmtMenge(gesamtSummen[prod]?.menge || 0), C.menge, y, { align: 'right' });
-    doc.text(fmtEuro(gesamtSummen[prod]?.euro  || 0)+' €', C.euro,  y, { align: 'right' });
+    doc.text(fmtEuro(gesamtSummen[prod]?.euro  || 0), C.euro,  y, { align: 'right' });
     doc.setDrawColor(0);
     y += 10;
   });
