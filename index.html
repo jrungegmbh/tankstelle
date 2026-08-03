@@ -5720,7 +5720,17 @@ function initLaufPeriods() {
   // Dann rückwärts 3 weitere
   let curY = now.getFullYear();
   let curM = now.getMonth(); // 0-basiert
-  let curHalf = tag <= 15 ? 1 : 2; // 1 = erste Hälfte, 2 = zweite Hälfte
+  // Regel: am ersten Werktag nach dem 1. wird die 2. Hälfte des VORMONATS abgerechnet,
+  // am ersten Werktag nach dem 15. die 1. Hälfte des AKTUELLEN Monats.
+  // → Wir schlagen immer die zuletzt abgeschlossene Hälfte vor, nicht die laufende.
+  let curHalf;
+  if (tag <= 15) {
+    curHalf = 2;
+    curM = curM - 1;
+    if (curM < 0) { curM = 11; curY--; }
+  } else {
+    curHalf = 1;
+  }
 
   for (let i = 0; i < 4; i++) {
     let y = curY, m = curM, half = curHalf;
