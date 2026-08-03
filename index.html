@@ -5782,9 +5782,9 @@ function setLaufPeriod(von, bis) {
   document.getElementById('btn-lauf-reset').style.display = 'inline-block';
 }
 
-// Fax-Kunden-Status: zeigt IMMER alle als Fax markierten Kunden und ob sie in der
-// aktuell geladenen Periode enthalten sind — damit keiner übersehen/vergessen wird,
-// da der Faxversand (im Gegensatz zu Email) nicht automatisch passiert.
+// Fax-Kunden-Warnung: zeigt nur noch Fax-Kunden, die in der aktuell geladenen Periode
+// NICHT auftauchen (keine Tankung) — die vorhandenen sind jetzt direkt in der jeweiligen
+// Tabelle blau markiert und ganz oben einsortiert, brauchen also keinen extra Hinweis mehr.
 function renderFaxStatus() {
   const el = document.getElementById('lauf-fax-status');
   if (!el) return;
@@ -5795,18 +5795,13 @@ function renderFaxStatus() {
     return fn.includes('F');
   });
 
-  if (!faxKunden.length) { el.style.display = 'none'; return; }
+  const fehlend = faxKunden.filter(k => !_laufData.kunden[k.kundennr]);
+
+  if (!fehlend.length) { el.style.display = 'none'; return; }
 
   el.style.display = 'block';
-  el.innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--blue);">📠 Fax-Kunden — Status für ${fmtDatum(_laufData.von)} – ${fmtDatum(_laufData.bis)}</div>` +
-    faxKunden.map(k => {
-      const eintrag = _laufData.kunden[k.kundennr];
-      if (eintrag) {
-        return `<div style="font-size:12px;color:var(--green);padding:2px 0;">✓ <strong>${k.name}</strong> — enthalten, ${fmt(eintrag.total)} €${eintrag.rechnungsnr ? ' · Re. ' + eintrag.rechnungsnr : ' · noch keine Re.-Nr.'}</div>`;
-      } else {
-        return `<div style="font-size:12px;color:var(--text3);padding:2px 0;">— <strong>${k.name}</strong> — keine Tankung in diesem Zeitraum, nichts zu faxen</div>`;
-      }
-    }).join('');
+  el.innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:var(--blue);">📠 Hinweis — keine Tankung in ${fmtDatum(_laufData.von)} – ${fmtDatum(_laufData.bis)}, daher nicht in den Tabellen:</div>` +
+    fehlend.map(k => `<div style="font-size:12px;color:var(--text3);padding:2px 0;">— <strong>${k.name}</strong></div>`).join('');
 }
 
 async function laufLaden() {
@@ -6143,6 +6138,10 @@ function renderLaufTabelle(typ) {
   const kunden = Object.values(_laufData.kunden)
     .filter(k => k.zahltyp === typ)
     .sort((a, b) => {
+      // Fax-Kunden immer ganz oben, damit sie nicht übersehen werden
+      const aFax = (a.orfunktion || '').toUpperCase().includes('F') ? 1 : 0;
+      const bFax = (b.orfunktion || '').toUpperCase().includes('F') ? 1 : 0;
+      if (aFax !== bFax) return bFax - aFax;
       let va, vb;
       if (col === 'name') { va = a.name || ''; vb = b.name || ''; return va.localeCompare(vb, 'de') * dir; }
       if (col === 'ort')  { va = a.kunde?.ort?.ortname || ''; vb = b.kunde?.ort?.ortname || ''; return va.localeCompare(vb, 'de') * dir; }
@@ -6166,6 +6165,7 @@ function renderLaufTabelle(typ) {
     const rechnNr = k.rechnungsnr
       ? `<span class="mono" style="color:var(--green)">${k.rechnungsnr}</span>`
       : '<span style="color:var(--text3)">—</span>';
+    const istFax = (k.orfunktion || '').toUpperCase().includes('F');
 
     // E-Mail-Sendedatum (nur für SEPA/Rechnung)
     let emailCell = '';
@@ -6180,8 +6180,8 @@ function renderLaufTabelle(typ) {
       }
     }
 
-    return `<tr>
-      <td><a href="#" onclick="showPage('kunden');openKundeDetail(${k.kundennr});return false;"
+    return `<tr${istFax ? ' style="background:rgba(74,158,255,0.12);"' : ''}>
+      <td>${istFax ? '<span title="Fax-Kunde — wird nicht automatisch verschickt" style="margin-right:5px;">📠</span>' : ''}<a href="#" onclick="showPage('kunden');openKundeDetail(${k.kundennr});return false;"
          style="color:var(--accent2)">${k.kunde.name || k.kundennr}</a></td>
       ${typ !== 'eigen' ? `<td class="muted" style="font-size:12px;">${ortStr}</td>` : ''}
       <td class="right mono">${fmt(k.menge)} L</td>
