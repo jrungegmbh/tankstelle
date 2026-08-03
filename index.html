@@ -4294,7 +4294,7 @@ function renderKundenList(kunden) {
     return;
   }
   list.innerHTML = kunden.map(k => {
-    const art = getZahltyp(k.mazaart);
+    const art = getZahltyp(k.kuzart ?? k.mazaart);
     const ortStr = k.ort ? `${k.ort.plz} ${k.ort.ortname}` : '';
     const fn = (k.ort?.orfunktion || '').trim().toUpperCase();
     const fnColors = { 'E': '#4a9eff', 'R': '#f0a500', 'B': '#4caf7d' };
@@ -4360,10 +4360,10 @@ function filterKunden() {
       String(k.kundennr).includes(q) ||
       (k.ort?.ortname||'').toLowerCase().includes(q) ||
       (k.vorname||'').toLowerCase().includes(q);
-    const matchArt = !art || String(k.mazaart) === art;
-    // SEPA-Mandat fehlt: nur SEPA-Kunden (mazaart=1) ohne Mandat
+    const matchArt = !art || String(k.kuzart ?? k.mazaart) === art;
+    // SEPA-Mandat fehlt: nur SEPA-Kunden (kuzart=1) ohne Mandat
     const matchSepaFehlend = !_sepaFehlendAktiv || (
-      String(k.mazaart) === '1' && !mandateKundennrs.has(String(k.kundennr))
+      String(k.kuzart ?? k.mazaart) === '1' && !mandateKundennrs.has(String(k.kundennr))
     );
 
     // Umsatz-Filter: prüfe letzte Tankung per Kunde (aus Cache _kundenLetztesTankdatum)
@@ -4459,7 +4459,7 @@ async function openKundeDetail(nr) {
   // Header
   document.getElementById('kd-name').textContent = (k.name || '') + (k.vorname ? ', ' + k.vorname : '');
   document.getElementById('kd-nr').textContent = 'Kunden-Nr. ' + nr;
-  document.getElementById('kd-badge').innerHTML = getZahltyp(k.mazaart).badge;
+  document.getElementById('kd-badge').innerHTML = getZahltyp(k.kuzart ?? k.mazaart).badge;
 
   // Stammdaten — erst anzeigen was wir haben
   document.getElementById('kd-kundennr').textContent = nr;
