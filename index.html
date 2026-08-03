@@ -8456,8 +8456,11 @@ async function generatePDF(kundennr, typ, periode) {
   doc.setLineWidth(0.3); doc.line(C.produkt, y-1, mr, y-1);
   doc.setLineWidth(0.7); doc.line(C.produkt, y+0.5, mr, y+0.5);
 
-  // SEPA-Hinweis (nur bei SEPA-Kunden)
-  const sepaMandat = await (async () => {
+  // SEPA-Hinweis (nur bei SEPA-Kunden — kuzart 1 = SEPA-Lastschrift).
+  // Verhindert, dass bei Rechnungs-/Eigenverbrauch-Kunden fälschlich ein Abbuchungshinweis
+  // erscheint, nur weil zufällig (noch) ein Bankdatensatz mit IBAN hinterlegt ist.
+  const istSepaKunde = kunde?.kuzart == 1;
+  const sepaMandat = istSepaKunde ? await (async () => {
     try {
       const r = await fetch(`${_SBURL}/rest/v1/sepa_mandate?kundennr=eq.${kundennr}&limit=1`, {
         headers: h
@@ -8465,9 +8468,9 @@ async function generatePDF(kundennr, typ, periode) {
       const d = await r.json();
       return Array.isArray(d) ? d[0] : null;
     } catch(e) { return null; }
-  })();
+  })() : null;
 
-  if (sepaMandat?.iban) {
+  if (istSepaKunde && sepaMandat?.iban) {
     y += 8;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
