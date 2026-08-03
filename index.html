@@ -8814,12 +8814,29 @@ async function _eigenverbrauchLadenInner() {
     return;
   }
 
+  // Nach Kennzeichen gruppieren (ein Fahrzeug kann mehrere Ausweise haben → sonst Doppel-Zeilen)
+  const groupMap = {};
+  for (const r of rows) {
+    const groupKey = (r.kennzeichen || '').trim() || `__fzid_${r.id}`;
+    if (!groupMap[groupKey]) {
+      groupMap[groupKey] = { ...r, awsnrListe: [r.awsnr] };
+    } else {
+      const g = groupMap[groupKey];
+      g.menge += r.menge;
+      g.euro = (g.euro != null || r.euro != null) ? (g.euro || 0) + (r.euro || 0) : null;
+      g.awsnrListe.push(r.awsnr);
+      if (g.kostenstelle == null && r.kostenstelle != null) g.kostenstelle = r.kostenstelle;
+      if (!g.typ && r.typ) g.typ = r.typ;
+    }
+  }
+  const groupedRows = Object.values(groupMap);
+
   // Sortieren nach Kostenstelle
-  rows.sort((a,b) => (a.kostenstelle||999) - (b.kostenstelle||999));
+  groupedRows.sort((a,b) => (a.kostenstelle||999) - (b.kostenstelle||999));
 
   // 5% Aufschlag auf Menge und Euro (Anzeige & PDF)
   const AUFSCHLAG = 1.10;
-  const rowsAnz = rows.map(r => ({
+  const rowsAnz = groupedRows.map(r => ({
     ...r,
     menge: r.menge * AUFSCHLAG,
     euro:  r.euro != null ? r.euro * AUFSCHLAG : null
@@ -8828,7 +8845,7 @@ async function _eigenverbrauchLadenInner() {
   const gesamtMenge = rowsAnz.reduce((s,r) => s + r.menge, 0);
   const gesamtEuro  = ekPreis ? rowsAnz.reduce((s,r) => s + (r.euro||0), 0) : null;
 
-  document.getElementById('ev-result-title').textContent = `Eigenverbrauch ${MONATE[monat]} ${jahr} — ${rows.length} Fahrzeuge (inkl. 10% Aufschlag)`;
+  document.getElementById('ev-result-title').textContent = `Eigenverbrauch ${MONATE[monat]} ${jahr} — ${rowsAnz.length} Fahrzeuge (inkl. 10% Aufschlag)`;
   document.getElementById('ev-gesamt-euro').textContent = gesamtEuro != null
     ? `${fmtMenge(gesamtMenge)} Ltr. / ${fmtEuro(gesamtEuro)}`
     : `${fmtMenge(gesamtMenge)} Ltr.`;
@@ -8836,7 +8853,7 @@ async function _eigenverbrauchLadenInner() {
   document.getElementById('ev-tbody').innerHTML = rowsAnz.map(r => `<tr>
     <td class="mono">${r.kostenstelle ?? '—'}</td>
     <td style="font-weight:500;">${r.kennzeichen || '—'}</td>
-    <td class="mono">${r.awsnr ?? '—'}</td>
+    <td class="mono">${(r.awsnrListe || [r.awsnr]).filter(v => v != null).join(', ') || '—'}</td>
     <td class="muted">${r.typ || '—'}</td>
     <td class="right mono">${fmtMenge(r.menge)}</td>
     <td class="right mono">${ekPreis ? ekPreis.toFixed(3).replace('.',',') + ' €' : '—'}</td>
@@ -8848,7 +8865,7 @@ async function _eigenverbrauchLadenInner() {
 
   // Daten für PDF merken (mit Aufschlag)
   window._evData = { rows: rowsAnz, monat, jahr, ekPreis, gesamtMenge, gesamtEuro };
-  toast(`${rows.length} Fahrzeuge mit Verbrauch geladen`, 'success');
+  toast(`${rowsAnz.length} Fahrzeuge mit Verbrauch geladen`, 'success');
 }
 
 async function eigenverbrauchPDF() {
@@ -8943,7 +8960,7 @@ async function eigenverbrauchPDF() {
     doc.setTextColor(0, 0, 0);
     doc.text(String(r.id ?? ''),                     C.id, y);
     doc.text(r.kennzeichen || '—',                   C.kennz, y);
-    doc.text(String(r.awsnr ?? '—'),                 C.schluessel, y);
+    doc.text((r.awsnrListe || [r.awsnr]).filter(v => v != null).join(', ') || '—', C.schluessel, y);
     doc.text(String(r.kostenstelle ?? '0'),          C.ks, y);
     doc.text(fmtMenge(r.menge) + ' Ltr.',            C.menge, y);
     doc.text(ekPreis ? ekPreis.toFixed(2).replace('.', ',') + ' €' : '—', C.ek, y);
