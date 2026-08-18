@@ -3107,7 +3107,7 @@ async function sbFetch(path, opts = {}) {
       if (k !== 'Prefer') extraHeaders[k] = v;
     }
   }
-  const res = await fetch(_SBURL + '/rest/v1/' + path, {
+  const res = await fetch(_SBURL + '/' + path, {
     method,
     body,
     headers: {
@@ -3128,7 +3128,7 @@ async function sbFetch(path, opts = {}) {
 
 async function testConnection(silent = false) {
   try {
-    const _r = await fetch(`${_SBURL}/rest/v1/kunden?limit=1`, {
+    const _r = await fetch(`${_SBURL}/kunden?limit=1`, {
       headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'count=exact' }
     });
     if (!_r.ok) throw new Error(await _r.text());
@@ -3578,7 +3578,7 @@ function logImport(msg) {
 async function logToDb(typ, quelle, nachricht, opts = {}) {
   if (!state.key) return;
   try {
-    await fetch(`${_SBURL}/rest/v1/app_log`, {
+    await fetch(`${_SBURL}/app_log`, {
       method: 'POST',
       headers: {
         'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
@@ -3605,7 +3605,7 @@ async function cleanupOldLogs() {
   if (last === today) return;
   const cutoff = new Date(Date.now() - 730 * 24 * 3600 * 1000).toISOString();
   try {
-    await fetch(`${_SBURL}/rest/v1/app_log?created_at=lt.${encodeURIComponent(cutoff)}`, {
+    await fetch(`${_SBURL}/app_log?created_at=lt.${encodeURIComponent(cutoff)}`, {
       method: 'DELETE',
       headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'return=minimal' }
     });
@@ -3620,7 +3620,7 @@ async function fetchExistingMap(table, keyField, selectFields) {
   const map = new Map();
   const pageSize = 1000;
   for (let from = 0; from < 200000; from += pageSize) {
-    const res = await fetch(`${_SBURL}/rest/v1/${table}?select=${selectFields}`, {
+    const res = await fetch(`${_SBURL}/${table}?select=${selectFields}`, {
       headers: {
         'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
         'Range': `${from}-${from + pageSize - 1}`
@@ -3705,7 +3705,7 @@ async function loadLogHistorie() {
   const cutoff = new Date(Date.now() - tage * 24 * 3600 * 1000).toISOString();
   try {
     const res = await fetch(
-      `${_SBURL}/rest/v1/app_log?typ=eq.${_logHistorieTab}&created_at=gte.${encodeURIComponent(cutoff)}&order=created_at.desc&limit=200`,
+      `${_SBURL}/app_log?typ=eq.${_logHistorieTab}&created_at=gte.${encodeURIComponent(cutoff)}&order=created_at.desc&limit=200`,
       { headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER } }
     );
     if (!res.ok) {
@@ -4026,7 +4026,7 @@ async function importCard(records, lastModified) {
   for (let i = 0; i < rows.length; i += PARALLEL) {
     const chunk = rows.slice(i, i + PARALLEL);
     await Promise.allSettled(chunk.map(row =>
-      fetch(`${_SBURL}/rest/v1/ausweise?maident=eq.${row.maident}`, {
+      fetch(`${_SBURL}/ausweise?maident=eq.${row.maident}`, {
         method: 'PATCH', headers: h,
         body: JSON.stringify({ pin: row.pin })
       }).then(r => { if (r.ok) updated++; })
@@ -4183,7 +4183,7 @@ async function importHiatab(records, lastModified) {
   // Test-PATCH mit einem bekannten Datensatz
   logImport(`[HIATAB] Teste PATCH-Berechtigung...`);
   const testRes = await fetch(
-    `${_SBURL}/rest/v1/tankungen?hibelegnr=eq.115157`,
+    `${_SBURL}/tankungen?hibelegnr=eq.115157`,
     {
       method: 'PATCH',
       headers: {
@@ -4214,7 +4214,7 @@ async function importHiatab(records, lastModified) {
   for (let i = 0; i < allBatches.length; i += PARALLEL) {
     const chunk = allBatches.slice(i, i + PARALLEL);
     const results = await Promise.allSettled(chunk.map(({ grp, ids }) =>
-      fetch(`${_SBURL}/rest/v1/tankungen?hibelegnr=in.(${ids.join(',')})`, {
+      fetch(`${_SBURL}/tankungen?hibelegnr=in.(${ids.join(',')})`, {
         method: 'PATCH',
         headers: {
           'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
@@ -4257,7 +4257,7 @@ async function importHiatab(records, lastModified) {
     let ok = 0, err2 = 0;
     for (let i = 0; i < rechnungenRows.length; i += 50) {
       await Promise.all(rechnungenRows.slice(i, i+50).map(async row => {
-        const res = await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${encodeURIComponent(row.rechnungsnr)}`,
+        const res = await fetch(`${_SBURL}/rechnungen?rechnungsnr=eq.${encodeURIComponent(row.rechnungsnr)}`,
           { method: 'PATCH', headers: hdr, body: JSON.stringify({ rechnungsdatum: row.rechnungsdatum }) });
         res.ok ? ok++ : err2++;
       }));
@@ -4281,7 +4281,7 @@ async function importTankungen(records, lastModified, forceAll = false) {
   if (!forceAll) {
     try {
       const res = await fetch(
-        `${_SBURL}/rest/v1/tankungen?select=hidatum&order=hidatum.desc&limit=1`,
+        `${_SBURL}/tankungen?select=hidatum&order=hidatum.desc&limit=1`,
         { headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-0' } }
       );
       const data = await res.json();
@@ -4413,7 +4413,7 @@ async function importTankungen(records, lastModified, forceAll = false) {
 
   // Gesamtzahl Badge aktualisieren
   try {
-    const cr = await fetch(`${_SBURL}/rest/v1/tankungen?select=id`, {
+    const cr = await fetch(`${_SBURL}/tankungen?select=id`, {
       headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                  'Prefer': 'count=exact', 'Range': '0-0' }
     });
@@ -4432,7 +4432,7 @@ async function upsertBatch(table, rows, onConflict) {
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
     // on_conflict must be a query param, not a header
-    const url = `${_SBURL}/rest/v1/${table}?on_conflict=${onConflict}`;
+    const url = `${_SBURL}/${table}?on_conflict=${onConflict}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -4473,7 +4473,7 @@ async function loadKunden() {
       const pageSize = 1000;
       for (let from = 0; from < 5000; from += pageSize) {
         const to = from + pageSize - 1;
-        const r = await fetch(`${_SBURL}/rest/v1/ort?select=*&order=ortid`, {
+        const r = await fetch(`${_SBURL}/ort?select=*&order=ortid`, {
           headers: {
             'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
             'Range': `${from}-${to}`, 'Prefer': 'return=representation'
@@ -4488,10 +4488,10 @@ async function loadKunden() {
     }
 
     const [kundenRes, ausweisenRes, orte, sepaMandateRes] = await Promise.all([
-      fetch(`${_SBURL}/rest/v1/kunden?select=*&order=name`, { headers }).then(r => r.json()),
-      fetch(`${_SBURL}/rest/v1/ausweise?select=*&order=marbnr`, { headers }).then(r => r.json()),
+      fetch(`${_SBURL}/kunden?select=*&order=name`, { headers }).then(r => r.json()),
+      fetch(`${_SBURL}/ausweise?select=*&order=marbnr`, { headers }).then(r => r.json()),
       loadAllOrte(),
-      fetch(`${_SBURL}/rest/v1/sepa_mandate?select=*&limit=5000`, { headers }).then(r => r.json())
+      fetch(`${_SBURL}/sepa_mandate?select=*&limit=5000`, { headers }).then(r => r.json())
     ]);
 
     const kunden = kundenRes;
@@ -4646,7 +4646,7 @@ async function ladeKundenUmsatzCache() {
     let page = 0;
 
     while (true) {
-      let url = `${_SBURL}/rest/v1/tankungen?select=kundennr,hidatum,id&order=hidatum.desc,id.desc`;
+      let url = `${_SBURL}/tankungen?select=kundennr,hidatum,id&order=hidatum.desc,id.desc`;
       if (cursor) url += `&hidatum=lte.${cursor.date}&id=lt.${cursor.id}`;
 
       const res = await fetch(url, { headers: { ...h, 'Range': `0-${pageSize - 1}` } });
@@ -4721,7 +4721,7 @@ async function openKundeDetail(nr) {
 
   // Falls ortid vorhanden aber ort nicht geladen → direkt nachladen
   if (k.ortid && !k.ort) {
-    fetch(`${_SBURL}/rest/v1/ort?ortid=eq.${k.ortid}&select=*`, {
+    fetch(`${_SBURL}/ort?ortid=eq.${k.ortid}&select=*`, {
       headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-1', 'Prefer': 'return=representation' }
     }).then(r => r.json()).then(data => {
       if (Array.isArray(data) && data[0]) {
@@ -4782,8 +4782,8 @@ async function openKundeDetail(nr) {
 
   try {
     const [mRes, tRes] = await Promise.all([
-      fetch(`${_SBURL}/rest/v1/sepa_mandate?select=*&kundennr=eq.${nr}`, { headers: h }),
-      fetch(`${_SBURL}/rest/v1/tankungen?kundennr=eq.${nr}&order=hidatum.desc,hizeit.desc&select=hidatum,hizeit,himenge,hipreis,hilpreis,maident,hiartbez,zahltyp,rechnungsnr,abgerechnet,mwst_satz`, { headers: h })
+      fetch(`${_SBURL}/sepa_mandate?select=*&kundennr=eq.${nr}`, { headers: h }),
+      fetch(`${_SBURL}/tankungen?kundennr=eq.${nr}&order=hidatum.desc,hizeit.desc&select=hidatum,hizeit,himenge,hipreis,hilpreis,maident,hiartbez,zahltyp,rechnungsnr,abgerechnet,mwst_satz`, { headers: h })
     ]);
 
     const [mandate, tankungen] = await Promise.all([mRes.json(), tRes.json()]);
@@ -4947,20 +4947,20 @@ Tankungen werden wieder auf "offen" gesetzt.`;
   try {
     // 1. Tankungen zurücksetzen
     await fetch(
-      `${_SBURL}/rest/v1/tankungen?kundennr=eq.${kundennr}&hidatum=gte.${von}&hidatum=lte.${bis}`,
+      `${_SBURL}/tankungen?kundennr=eq.${kundennr}&hidatum=gte.${von}&hidatum=lte.${bis}`,
       { method: 'PATCH', headers: h,
         body: JSON.stringify({ abgerechnet: false, rechnungsnr: null, abgerechnet_am: null, periode_von: null, periode_bis: null }) }
     );
 
     // 2. Positionen + Rechnung löschen wenn Nummer bekannt
     if (rechnungsnr) {
-      await fetch(`${_SBURL}/rest/v1/rechnung_positionen?rechnungsnr=eq.${rechnungsnr}`,
+      await fetch(`${_SBURL}/rechnung_positionen?rechnungsnr=eq.${rechnungsnr}`,
         { method: 'DELETE', headers: h });
-      await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${rechnungsnr}`,
+      await fetch(`${_SBURL}/rechnungen?rechnungsnr=eq.${rechnungsnr}`,
         { method: 'DELETE', headers: h });
     } else {
       // Rechnungen für diesen Kunden und Zeitraum löschen
-      await fetch(`${_SBURL}/rest/v1/rechnungen?kundennr=eq.${kundennr}&periode_von=eq.${von}&periode_bis=eq.${bis}`,
+      await fetch(`${_SBURL}/rechnungen?kundennr=eq.${kundennr}&periode_von=eq.${von}&periode_bis=eq.${bis}`,
         { method: 'DELETE', headers: h });
     }
 
@@ -4986,7 +4986,7 @@ async function renderKdRechnungen(tankungen, k) {
   try {
     const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-999' };
     const er = await fetch(
-      `${_SBURL}/rest/v1/rechnungen?kundennr=eq.${k.kundennr}&select=rechnungsnr,email_sent_at,email_empfaenger`,
+      `${_SBURL}/rechnungen?kundennr=eq.${k.kundennr}&select=rechnungsnr,email_sent_at,email_empfaenger`,
       { headers: h }
     );
     const ed = await er.json();
@@ -5097,7 +5097,7 @@ async function openKdPeriode(von, bis, label, rowEl) {
     const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                  'Range': '0-9999', 'Prefer': 'return=representation' };
     const res = await fetch(
-      `${_SBURL}/rest/v1/tankungen?kundennr=eq.${_kdNr}&hidatum=gte.${von}&hidatum=lte.${bis}&order=hidatum,hizeit`,
+      `${_SBURL}/tankungen?kundennr=eq.${_kdNr}&hidatum=gte.${von}&hidatum=lte.${bis}&order=hidatum,hizeit`,
       { headers: h }
     );
     const data = await res.json();
@@ -5109,7 +5109,7 @@ async function openKdPeriode(von, bis, label, rowEl) {
     // Ausweise laden falls noch nicht vorhanden
     if (!state.data.ausweise || !state.data.ausweise.length) {
       try {
-        const ar = await fetch(`${_SBURL}/rest/v1/ausweise?select=*&order=marbnr`, {
+        const ar = await fetch(`${_SBURL}/ausweise?select=*&order=marbnr`, {
           headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-9999' }
         });
         state.data.ausweise = await ar.json() || [];
@@ -5150,7 +5150,7 @@ async function kdSaveVersandart(value) {
   const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
               'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
   try {
-    const res = await fetch(`${_SBURL}/rest/v1/kunden?kundennr=eq.${nr}`, {
+    const res = await fetch(`${_SBURL}/kunden?kundennr=eq.${nr}`, {
       method: 'PATCH', headers: h,
       body: JSON.stringify({ versand_override: value || null })
     });
@@ -5176,7 +5176,7 @@ async function kdSaveCcEmail(value) {
   const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
               'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
   try {
-    const res = await fetch(`${_SBURL}/rest/v1/kunden?kundennr=eq.${nr}`, {
+    const res = await fetch(`${_SBURL}/kunden?kundennr=eq.${nr}`, {
       method: 'PATCH', headers: h,
       body: JSON.stringify({ cc_email: value || null })
     });
@@ -5472,7 +5472,7 @@ async function sendEmail(kundennr, von, bis, rechnNr) {
       // Zeitstempel in rechnungen-Tabelle speichern
       if (rechnNr) {
         try {
-          await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${rechnNr}`, {
+          await fetch(`${_SBURL}/rechnungen?rechnungsnr=eq.${rechnNr}`, {
             method: 'PATCH',
             headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER,
                        'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -5750,7 +5750,7 @@ async function awDetailLaden() {
 
   try {
     const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-99999' };
-    const res = await fetch(`${_SBURL}/rest/v1/tankungen?maident=eq.${_awDetailMaident}&hidatum=gte.${von}&hidatum=lte.${bis}&select=hibelegnr,hidatum,hizeit,himenge,hilpreis,hipreis,hiartbez,manuell_erledigt&order=hidatum.desc,hizeit.desc`, { headers: h });
+    const res = await fetch(`${_SBURL}/tankungen?maident=eq.${_awDetailMaident}&hidatum=gte.${von}&hidatum=lte.${bis}&select=hibelegnr,hidatum,hizeit,himenge,hilpreis,hipreis,hiartbez,manuell_erledigt&order=hidatum.desc,hizeit.desc`, { headers: h });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const rows = await res.json();
     if (!Array.isArray(rows)) throw new Error('Unerwartete Antwort');
@@ -5813,7 +5813,7 @@ async function awDetailToggleErledigt(hibelegnr, checkboxEl) {
   checkboxEl.disabled = true;
   try {
     const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
-    const res = await fetch(`${_SBURL}/rest/v1/tankungen?hibelegnr=eq.${encodeURIComponent(hibelegnr)}`, {
+    const res = await fetch(`${_SBURL}/tankungen?hibelegnr=eq.${encodeURIComponent(hibelegnr)}`, {
       method: 'PATCH', headers: h, body: JSON.stringify({ manuell_erledigt: neu })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -5861,7 +5861,7 @@ async function filterTankungen() {
 
   try {
     const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-1999', 'Prefer': 'return=representation' };
-    const res = await fetch(`${_SBURL}/rest/v1/tankungen?${params}`, { headers: h });
+    const res = await fetch(`${_SBURL}/tankungen?${params}`, { headers: h });
     let data = await res.json();
     if (!Array.isArray(data)) { data = []; }
 
@@ -6160,7 +6160,7 @@ async function laufLaden() {
                'Range': '0-99999', 'Prefer': 'return=representation' };
   try {
     const res = await fetch(
-      `${_SBURL}/rest/v1/tankungen?hidatum=gte.${von}&hidatum=lte.${bis}&abgerechnet=eq.false&select=*&order=kundennr,hidatum`,
+      `${_SBURL}/tankungen?hidatum=gte.${von}&hidatum=lte.${bis}&abgerechnet=eq.false&select=*&order=kundennr,hidatum`,
       { headers: h }
     );
     const tankungen = await res.json();
@@ -6334,8 +6334,8 @@ async function laufWiederherstellen(von, bis) {
   try {
     // Bereits abgerechnete Tankungen für diesen Zeitraum laden
     const [tankRes, rechRes] = await Promise.all([
-      fetch(`${_SBURL}/rest/v1/tankungen?hidatum=gte.${von}&hidatum=lte.${bis}&abgerechnet=eq.true&select=*&order=kundennr,hidatum`, { headers: h }),
-      fetch(`${_SBURL}/rest/v1/rechnungen?periode_von=eq.${von}&periode_bis=eq.${bis}&select=rechnungsnr,kundennr,email_sent_at,email_empfaenger`, { headers: h })
+      fetch(`${_SBURL}/tankungen?hidatum=gte.${von}&hidatum=lte.${bis}&abgerechnet=eq.true&select=*&order=kundennr,hidatum`, { headers: h }),
+      fetch(`${_SBURL}/rechnungen?periode_von=eq.${von}&periode_bis=eq.${bis}&select=rechnungsnr,kundennr,email_sent_at,email_empfaenger`, { headers: h })
     ]);
     const tankungen = await tankRes.json();
     const rechnungen = await rechRes.json();
@@ -6553,7 +6553,7 @@ async function rechnungslaufZuruecksetzen() {
   let vergebeneNummern = [];
   try {
     const res = await fetch(
-      `${_SBURL}/rest/v1/rechnungen?periode_von=eq.${von}&periode_bis=eq.${bis}&select=rechnungsnr`,
+      `${_SBURL}/rechnungen?periode_von=eq.${von}&periode_bis=eq.${bis}&select=rechnungsnr`,
       { headers: h }
     );
     const data = await res.json();
@@ -6564,7 +6564,7 @@ async function rechnungslaufZuruecksetzen() {
   if (!vergebeneNummern.length) {
     try {
       const res = await fetch(
-        `${_SBURL}/rest/v1/tankungen?periode_von=eq.${von}&periode_bis=eq.${bis}&select=rechnungsnr&limit=1`,
+        `${_SBURL}/tankungen?periode_von=eq.${von}&periode_bis=eq.${bis}&select=rechnungsnr&limit=1`,
         { headers: h }
       );
       const data = await res.json();
@@ -6587,7 +6587,7 @@ async function rechnungslaufZuruecksetzen() {
 
   try {
     // 1. Tankungen zurücksetzen
-    await fetch(`${_SBURL}/rest/v1/tankungen?periode_von=eq.${von}&periode_bis=eq.${bis}`, {
+    await fetch(`${_SBURL}/tankungen?periode_von=eq.${von}&periode_bis=eq.${bis}`, {
       method: 'PATCH', headers: hw,
       body: JSON.stringify({ abgerechnet: false, rechnungsnr: null, abgerechnet_am: null, periode_von: null, periode_bis: null })
     });
@@ -6595,10 +6595,10 @@ async function rechnungslaufZuruecksetzen() {
     if (vergebeneNummern.length) {
       const nrList = vergebeneNummern.join(',');
       // 2. Positionen löschen
-      await fetch(`${_SBURL}/rest/v1/rechnung_positionen?rechnungsnr=in.(${nrList})`,
+      await fetch(`${_SBURL}/rechnung_positionen?rechnungsnr=in.(${nrList})`,
         { method: 'DELETE', headers: hw });
       // 3. Rechnungen löschen
-      await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=in.(${nrList})`,
+      await fetch(`${_SBURL}/rechnungen?rechnungsnr=in.(${nrList})`,
         { method: 'DELETE', headers: hw });
     }
 
@@ -6677,7 +6677,7 @@ async function rechnungslaufStarten() {
     const mwstBetrag  = totalBetrag - netto;
 
     // 1. Rechnung mit vollständigem Kunden-Snapshot speichern
-    await fetch(`${_SBURL}/rest/v1/rechnungen?on_conflict=rechnungsnr`, {
+    await fetch(`${_SBURL}/rechnungen?on_conflict=rechnungsnr`, {
       method: 'POST', headers: h,
       body: JSON.stringify({
         rechnungsnr: String(rNr),
@@ -6718,7 +6718,7 @@ async function rechnungslaufStarten() {
 
     // In Batches à 500 speichern
     for (let i = 0; i < positionen.length; i += 500) {
-      await fetch(`${_SBURL}/rest/v1/rechnung_positionen`, {
+      await fetch(`${_SBURL}/rechnung_positionen`, {
         method: 'POST', headers: h,
         body: JSON.stringify(positionen.slice(i, i + 500))
       });
@@ -6726,7 +6726,7 @@ async function rechnungslaufStarten() {
 
     // 3. Alle Tankungen dieser Periode für diesen Kunden als abgerechnet markieren
     const ids = k.items.map(t => t.hibelegnr).join(',');
-    await fetch(`${_SBURL}/rest/v1/tankungen?hibelegnr=in.(${ids})`, {
+    await fetch(`${_SBURL}/tankungen?hibelegnr=in.(${ids})`, {
       method: 'PATCH', headers: h,
       body: JSON.stringify({
         abgerechnet: true, rechnungsnr: String(rNr),
@@ -7634,7 +7634,7 @@ async function refreshDashboard() {
   // Helper: get exact count — returns {count, error}
   async function getCount(table) {
     try {
-      const r = await fetch(`${_SBURL}/rest/v1/${table}?select=id`, {
+      const r = await fetch(`${_SBURL}/${table}?select=id`, {
         headers: {
           'apikey': _SBKEY,
           'Authorization': 'Bearer ' + _BEARER,
@@ -8057,7 +8057,7 @@ async function fixKundennr() {
     toast(`Schritt 1: ${ecMaidents.length} EC-Ausweise (MAIDENT: ${ecMaidents.join(',')}) korrigieren...`, 'info');
     try {
       await fetch(
-        `${_SBURL}/rest/v1/tankungen?maident=in.(${ecMaidents.join(',')})`,
+        `${_SBURL}/tankungen?maident=in.(${ecMaidents.join(',')})`,
         { method: 'PATCH', headers: h, body: JSON.stringify({ zahltyp: 'ec', kundennr: null }) }
       );
       toast('✓ EC-Ausweise korrigiert', 'success');
@@ -8077,7 +8077,7 @@ async function fixKundennr() {
     for (const maident of batch) {
       try {
         const res = await fetch(
-          `${_SBURL}/rest/v1/tankungen?maident=eq.${maident}&kundennr=is.null`,
+          `${_SBURL}/tankungen?maident=eq.${maident}&kundennr=is.null`,
           { method: 'PATCH', headers: h, body: JSON.stringify({ kundennr: auswMap[maident] }) }
         );
         if (res.ok) updated++; else errors++;
@@ -8098,7 +8098,7 @@ async function fixProduktNamen() {
   let total = 0;
   for (const [code, name] of Object.entries(MAP)) {
     try {
-      const res = await fetch(`${_SBURL}/rest/v1/tankungen?hiartbez=eq.${code}`, {
+      const res = await fetch(`${_SBURL}/tankungen?hiartbez=eq.${code}`, {
         method: 'PATCH',
         headers: {
           'apikey': _SBKEY,
@@ -8189,8 +8189,8 @@ async function getMaxRechnungsnr() {
   let maxNr = 24754; // Sicherheits-Fallback NUR falls beide Tabellen wirklich leer sind
 
   const [r1, r2] = await Promise.all([
-    fetch(`${_SBURL}/rest/v1/tankungen?select=rechnungsnr&rechnungsnr=not.is.null&order=rechnungsnr.desc&limit=1`, { headers: h }),
-    fetch(`${_SBURL}/rest/v1/rechnungen?select=rechnungsnr&order=rechnungsnr.desc&limit=1`, { headers: h })
+    fetch(`${_SBURL}/tankungen?select=rechnungsnr&rechnungsnr=not.is.null&order=rechnungsnr.desc&limit=1`, { headers: h }),
+    fetch(`${_SBURL}/rechnungen?select=rechnungsnr&order=rechnungsnr.desc&limit=1`, { headers: h })
   ]);
 
   // WICHTIG: Bei einem HTTP-Fehler (z.B. kurzer Netzwerk-/Serverhänger) NICHT
@@ -8222,8 +8222,8 @@ async function rechnungsnrExistiert(nr) {
   const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'count=exact', 'Range': '0-0' };
   const nrStr = String(nr);
   const [r1, r2] = await Promise.all([
-    fetch(`${_SBURL}/rest/v1/tankungen?rechnungsnr=eq.${nrStr}&select=id&limit=1`, { headers: h }),
-    fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${nrStr}&select=rechnungsnr&limit=1`, { headers: h })
+    fetch(`${_SBURL}/tankungen?rechnungsnr=eq.${nrStr}&select=id&limit=1`, { headers: h }),
+    fetch(`${_SBURL}/rechnungen?rechnungsnr=eq.${nrStr}&select=rechnungsnr&limit=1`, { headers: h })
   ]);
   if (!r1.ok || !r2.ok) {
     throw new Error(`Prüfung auf Rechnungsnummer ${nrStr} fehlgeschlagen (HTTP ${!r1.ok ? r1.status : r2.status}). Bitte nochmal versuchen.`);
@@ -8437,7 +8437,7 @@ async function generatePDF(kundennr, typ, periode) {
   if (periode?.fixedRechnungsnr) {
     try {
       const archRes = await fetch(
-        `${_SBURL}/rest/v1/rechnung_positionen?rechnungsnr=eq.${periode.fixedRechnungsnr}&order=marbnr,hidatum,hizeit`,
+        `${_SBURL}/rechnung_positionen?rechnungsnr=eq.${periode.fixedRechnungsnr}&order=marbnr,hidatum,hizeit`,
         { headers: h }
       );
       const archData = await archRes.json();
@@ -8463,7 +8463,7 @@ async function generatePDF(kundennr, typ, periode) {
     if (useArchiv) {
       try {
         const rRes = await fetch(
-          `${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${periode.fixedRechnungsnr}&limit=1`,
+          `${_SBURL}/rechnungen?rechnungsnr=eq.${periode.fixedRechnungsnr}&limit=1`,
           { headers: h }
         );
         const rData = await rRes.json();
@@ -8481,7 +8481,7 @@ async function generatePDF(kundennr, typ, periode) {
     if (!kunde) { toast('Kunde nicht gefunden', 'error'); return; }
     try {
       const res = await fetch(
-        `${_SBURL}/rest/v1/tankungen?kundennr=eq.${kundennr}&hidatum=gte.${von}&hidatum=lte.${bis}&order=maident,hidatum,hizeit`,
+        `${_SBURL}/tankungen?kundennr=eq.${kundennr}&hidatum=gte.${von}&hidatum=lte.${bis}&order=maident,hidatum,hizeit`,
         { headers: h }
       );
       tankungen = await res.json();
@@ -8494,7 +8494,7 @@ async function generatePDF(kundennr, typ, periode) {
   if (!useArchiv) {
     if (!state.data.ausweise || !state.data.ausweise.length) {
       try {
-        const ar = await fetch(`${_SBURL}/rest/v1/ausweise?select=*&order=marbnr`, {
+        const ar = await fetch(`${_SBURL}/ausweise?select=*&order=marbnr`, {
           headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-9999' }
         });
         state.data.ausweise = await ar.json() || [];
@@ -8806,7 +8806,7 @@ async function generatePDF(kundennr, typ, periode) {
   const istSepaKunde = kunde?.kuzart == 1;
   const sepaMandat = istSepaKunde ? await (async () => {
     try {
-      const r = await fetch(`${_SBURL}/rest/v1/sepa_mandate?kundennr=eq.${kundennr}&limit=1`, {
+      const r = await fetch(`${_SBURL}/sepa_mandate?kundennr=eq.${kundennr}&limit=1`, {
         headers: h
       });
       const d = await r.json();
@@ -8943,7 +8943,7 @@ async function loadFahrzeuge() {
   const tbody = document.getElementById('fahrzeuge-tbody');
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">Lade...</td></tr>';
   try {
-    const res = await fetch(`${_SBURL}/rest/v1/fahrzeuge?select=*&order=kostenstelle,kennzeichen`, {
+    const res = await fetch(`${_SBURL}/fahrzeuge?select=*&order=kostenstelle,kennzeichen`, {
       headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-999' }
     });
     const data = await res.json();
@@ -8990,10 +8990,10 @@ async function saveFahrzeug() {
                'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
   try {
     if (id) {
-      await fetch(`${_SBURL}/rest/v1/fahrzeuge?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify(data) });
+      await fetch(`${_SBURL}/fahrzeuge?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify(data) });
       toast('Fahrzeug gespeichert', 'success');
     } else {
-      await fetch(`${_SBURL}/rest/v1/fahrzeuge`, { method: 'POST', headers: h, body: JSON.stringify(data) });
+      await fetch(`${_SBURL}/fahrzeuge`, { method: 'POST', headers: h, body: JSON.stringify(data) });
       toast('Fahrzeug hinzugefügt', 'success');
     }
     document.getElementById('modal-fahrzeug').classList.remove('show');
@@ -9004,7 +9004,7 @@ async function saveFahrzeug() {
 async function deleteFahrzeug(id) {
   if (!confirm('Fahrzeug wirklich löschen?')) return;
   const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER };
-  await fetch(`${_SBURL}/rest/v1/fahrzeuge?id=eq.${id}`, { method: 'DELETE', headers: h });
+  await fetch(`${_SBURL}/fahrzeuge?id=eq.${id}`, { method: 'DELETE', headers: h });
   toast('Fahrzeug gelöscht', 'success');
   loadFahrzeuge();
 }
@@ -9020,7 +9020,7 @@ async function loadEkPreise() {
   const tbody = document.getElementById('ekpreise-tbody');
   tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px;">Lade...</td></tr>';
   try {
-    const res = await fetch(`${_SBURL}/rest/v1/ek_preise?select=*&order=jahr.desc,monat.desc`, {
+    const res = await fetch(`${_SBURL}/ek_preise?select=*&order=jahr.desc,monat.desc`, {
       headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-999' }
     });
     const data = await res.json();
@@ -9066,9 +9066,9 @@ async function saveEkPreis() {
                'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
   try {
     if (id) {
-      await fetch(`${_SBURL}/rest/v1/ek_preise?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify(data) });
+      await fetch(`${_SBURL}/ek_preise?id=eq.${id}`, { method: 'PATCH', headers: h, body: JSON.stringify(data) });
     } else {
-      await fetch(`${_SBURL}/rest/v1/ek_preise?on_conflict=jahr,monat`, { method: 'POST', headers: h, body: JSON.stringify(data) });
+      await fetch(`${_SBURL}/ek_preise?on_conflict=jahr,monat`, { method: 'POST', headers: h, body: JSON.stringify(data) });
     }
     toast(`EK-Preis ${MONATE[data.monat]} ${data.jahr} gespeichert`, 'success');
     document.getElementById('modal-ek').classList.remove('show');
@@ -9078,7 +9078,7 @@ async function saveEkPreis() {
 
 async function deleteEkPreis(id) {
   if (!confirm('EK-Preis wirklich löschen?')) return;
-  await fetch(`${_SBURL}/rest/v1/ek_preise?id=eq.${id}`, {
+  await fetch(`${_SBURL}/ek_preise?id=eq.${id}`, {
     method: 'DELETE', headers: { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER }
   });
   toast('EK-Preis gelöscht', 'success');
@@ -9122,7 +9122,7 @@ async function _eigenverbrauchLadenInner() {
   // EK-Preis für diesen Monat laden
   let ekPreis = null;
   try {
-    const ekRes = await fetch(`${_SBURL}/rest/v1/ek_preise?jahr=eq.${jahr}&monat=eq.${monat}&limit=1`, { headers: h });
+    const ekRes = await fetch(`${_SBURL}/ek_preise?jahr=eq.${jahr}&monat=eq.${monat}&limit=1`, { headers: h });
     const ekData = await ekRes.json();
     ekPreis = Array.isArray(ekData) && ekData[0] ? parseFloat(ekData[0].ek_preis) : null;
   } catch(e) {}
@@ -9136,7 +9136,7 @@ async function _eigenverbrauchLadenInner() {
   }
 
   // Fahrzeuge laden
-  const fzRes = await fetch(`${_SBURL}/rest/v1/fahrzeuge?select=*&order=kostenstelle,kennzeichen`, { headers: h });
+  const fzRes = await fetch(`${_SBURL}/fahrzeuge?select=*&order=kostenstelle,kennzeichen`, { headers: h });
   const fahrzeuge = await fzRes.json();
   if (!Array.isArray(fahrzeuge) || !fahrzeuge.length) {
     toast('Keine Fahrzeuge eingetragen — bitte unter "Eigene Fahrzeuge" anlegen', 'error'); return;
@@ -9145,7 +9145,7 @@ async function _eigenverbrauchLadenInner() {
 
   // Ausweise laden: maident + marbnr (marbnr = MAAWNR = sichtbare Ausweisnummer = fahrzeuge.awsnr)
   // Verknüpfung: fahrzeug.awsnr → ausweise.marbnr → ausweise.maident → tankungen.maident
-  const auswRes = await fetch(`${_SBURL}/rest/v1/ausweise?select=maident,marbnr&limit=5000`, { headers: h });
+  const auswRes = await fetch(`${_SBURL}/ausweise?select=maident,marbnr&limit=5000`, { headers: h });
   const ausweise = await auswRes.json();
   if (!Array.isArray(ausweise)) throw new Error('Ausweise konnten nicht geladen werden: ' + JSON.stringify(ausweise));
   console.log('[EV] Ausweise geladen:', ausweise.length, 'Beispiel:', ausweise.slice(0,3));
@@ -9166,7 +9166,7 @@ async function _eigenverbrauchLadenInner() {
 
   // Tankungen nach ausweis_nr (=marbnr) filtern, nur Diesel (DK)
   const tankRes = await fetch(
-    `${_SBURL}/rest/v1/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&ausweis_nr=in.(${fahrzeugAwsnrs.join(',')})&hiartbez=eq.Diesel&select=ausweis_nr,himenge,hipreis`,
+    `${_SBURL}/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&ausweis_nr=in.(${fahrzeugAwsnrs.join(',')})&hiartbez=eq.Diesel&select=ausweis_nr,himenge,hipreis`,
     { headers: h }
   );
   const tankungen = await tankRes.json();
@@ -9450,7 +9450,7 @@ async function _evAdBlueLadenInner() {
   // EK-Preis Ad Blue für diesen Monat laden
   let ekPreis = null;
   try {
-    const ekRes = await fetch(`${_SBURL}/rest/v1/ek_preise?jahr=eq.${jahr}&monat=eq.${monat}&limit=1`, { headers: h });
+    const ekRes = await fetch(`${_SBURL}/ek_preise?jahr=eq.${jahr}&monat=eq.${monat}&limit=1`, { headers: h });
     const ekData = await ekRes.json();
     ekPreis = Array.isArray(ekData) && ekData[0]?.ek_preis_adblue ? parseFloat(ekData[0].ek_preis_adblue) : null;
   } catch(e) {}
@@ -9463,7 +9463,7 @@ async function _evAdBlueLadenInner() {
   }
 
   // Fahrzeuge laden
-  const fzRes = await fetch(`${_SBURL}/rest/v1/fahrzeuge?select=*&order=kostenstelle,kennzeichen`, { headers: h });
+  const fzRes = await fetch(`${_SBURL}/fahrzeuge?select=*&order=kostenstelle,kennzeichen`, { headers: h });
   const fahrzeuge = await fzRes.json();
   if (!Array.isArray(fahrzeuge) || !fahrzeuge.length) {
     toast('Keine Fahrzeuge eingetragen', 'error'); return;
@@ -9475,7 +9475,7 @@ async function _evAdBlueLadenInner() {
 
   // Nur Ad Blue Tankungen
   const tankRes = await fetch(
-    `${_SBURL}/rest/v1/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&ausweis_nr=in.(${fahrzeugAwsnrs.join(',')})&hiartbez=eq.Ad Blue&select=ausweis_nr,himenge,hipreis`,
+    `${_SBURL}/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&ausweis_nr=in.(${fahrzeugAwsnrs.join(',')})&hiartbez=eq.Ad Blue&select=ausweis_nr,himenge,hipreis`,
     { headers: h }
   );
   const tankungen = await tankRes.json();
@@ -9649,7 +9649,7 @@ async function rechnungenLaden() {
       while (true) {
         const sep = path.includes('?') ? '&' : '?';
         const res = await fetch(
-          `${_SBURL}/rest/v1/${path}${sep}limit=${pageSize}&offset=${offset}`,
+          `${_SBURL}/${path}${sep}limit=${pageSize}&offset=${offset}`,
           { headers: { ...h, 'Range': `${offset}-${offset+pageSize-1}` } }
         );
         const data = await res.json();
@@ -9857,8 +9857,8 @@ async function rechnungLoeschen(rechnungsnr) {
   if (!confirm(`Rechnung ${rechnungsnr} löschen?\n\nDie Nummer wird damit wieder für den nächsten Rechnungslauf freigegeben.`)) return;
   const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'return=minimal' };
   try {
-    await fetch(`${_SBURL}/rest/v1/rechnung_positionen?rechnungsnr=eq.${rechnungsnr}`, { method: 'DELETE', headers: h });
-    await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${rechnungsnr}`, { method: 'DELETE', headers: h });
+    await fetch(`${_SBURL}/rechnung_positionen?rechnungsnr=eq.${rechnungsnr}`, { method: 'DELETE', headers: h });
+    await fetch(`${_SBURL}/rechnungen?rechnungsnr=eq.${rechnungsnr}`, { method: 'DELETE', headers: h });
     toast(`Rechnung ${rechnungsnr} gelöscht`, 'success');
     rechnungenLaden();
   } catch(e) { toast('Fehler: ' + e.message, 'error'); }
@@ -9871,8 +9871,8 @@ async function rechnungenLeereBereinigen() {
   const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Prefer': 'return=minimal' };
   try {
     for (const r of leere) {
-      await fetch(`${_SBURL}/rest/v1/rechnung_positionen?rechnungsnr=eq.${r.rechnungsnr}`, { method: 'DELETE', headers: h });
-      await fetch(`${_SBURL}/rest/v1/rechnungen?rechnungsnr=eq.${r.rechnungsnr}`, { method: 'DELETE', headers: h });
+      await fetch(`${_SBURL}/rechnung_positionen?rechnungsnr=eq.${r.rechnungsnr}`, { method: 'DELETE', headers: h });
+      await fetch(`${_SBURL}/rechnungen?rechnungsnr=eq.${r.rechnungsnr}`, { method: 'DELETE', headers: h });
     }
     toast(`${leere.length} leere Rechnungen gelöscht`, 'success');
     rechnungenLaden();
@@ -9949,7 +9949,7 @@ async function ecMonatLaden() {
     const maawnrs = (cfg.ec || '19,502,505,507,508,530')
                       .split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
     const awRes = await fetch(
-      `${_SBURL}/rest/v1/ausweise?marbnr=in.(${maawnrs.join(',')})&select=maident`,
+      `${_SBURL}/ausweise?marbnr=in.(${maawnrs.join(',')})&select=maident`,
       { headers: h }
     );
     let maidents = [];
@@ -9958,7 +9958,7 @@ async function ecMonatLaden() {
 
     // Alle EC-Tankungen im Monat paginiert laden (alle Produkte auf einmal)
     const PAGE = 1000;
-    const base = `${_SBURL}/rest/v1/tankungen`
+    const base = `${_SBURL}/tankungen`
       + `?maident=in.(${maidents.join(',')})`
       + `&hidatum=gte.${von}&hidatum=lte.${bis}`
       + `&order=hidatum.asc,hizeit.asc`
@@ -10357,7 +10357,7 @@ async function _rechnungskundenLadenInner() {
 
   // Tankungen direkt nach zahltyp=rechnung filtern
   const tankRes = await fetch(
-    `${_SBURL}/rest/v1/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&zahltyp=eq.rechnung&select=kundennr,himenge,hipreis,hiartbez`,
+    `${_SBURL}/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&zahltyp=eq.rechnung&select=kundennr,himenge,hipreis,hiartbez`,
     { headers: h }
   );
   const tankungen = await tankRes.json();
@@ -10367,7 +10367,7 @@ async function _rechnungskundenLadenInner() {
   const tankKdNrs = [...new Set(tankungen.map(t => t.kundennr).filter(Boolean))];
   const kdMap = {};
   if (tankKdNrs.length) {
-    const kdRes2 = await fetch(`${_SBURL}/rest/v1/kunden?kundennr=in.(${tankKdNrs.join(',')})&select=kundennr,name&order=name`, { headers: h });
+    const kdRes2 = await fetch(`${_SBURL}/kunden?kundennr=in.(${tankKdNrs.join(',')})&select=kundennr,name&order=name`, { headers: h });
     const kunden2 = await kdRes2.json();
     if (Array.isArray(kunden2)) kunden2.forEach(k => { kdMap[k.kundennr] = k.name || '—'; });
   }
@@ -10538,7 +10538,7 @@ async function _schluesselKundenLadenInner() {
   const zeitraumLabel = zeitraum === 'h1' ? `1.–15.` : zeitraum === 'h2' ? `16.–${letzterTag}.` : 'Gesamtmonat';
 
   // kuzart=1 Kunden mit Namen laden
-  const kdRes = await fetch(`${_SBURL}/rest/v1/kunden?kuzart=eq.1&select=kundennr,name&limit=9999`, { headers: h });
+  const kdRes = await fetch(`${_SBURL}/kunden?kuzart=eq.1&select=kundennr,name&limit=9999`, { headers: h });
   const kunden = await kdRes.json();
   if (!Array.isArray(kunden) || !kunden.length) {
     toast(`Keine Schlüsselkunden (kuzart=1) gefunden`, 'info');
@@ -10552,12 +10552,12 @@ async function _schluesselKundenLadenInner() {
   const kdNrs = kunden.map(k => k.kundennr);
 
   // Alle drei Zeiträume + Ausweise parallel laden (kuzart=1 + zahltyp=sepa)
-  const base = `${_SBURL}/rest/v1/tankungen?kundennr=in.(${kdNrs.join(',')})&zahltyp=eq.sepa&select=kundennr,himenge,hipreis,hiartbez,ausweis_nr`;
+  const base = `${_SBURL}/tankungen?kundennr=in.(${kdNrs.join(',')})&zahltyp=eq.sepa&select=kundennr,himenge,hipreis,hiartbez,ausweis_nr`;
   const [resGes, resH1, resH2, auswRes] = await Promise.all([
     fetch(`${base}&hidatum=gte.${vonStr}&hidatum=lte.${bisStr}`, { headers: h }),
     fetch(`${base}&hidatum=gte.${vonStr}&hidatum=lte.${bis15}`,  { headers: h }),
     fetch(`${base}&hidatum=gte.${von16}&hidatum=lte.${bisStr}`,  { headers: h }),
-    fetch(`${_SBURL}/rest/v1/ausweise?select=marbnr,rabatt&limit=9999`, { headers: h }),
+    fetch(`${_SBURL}/ausweise?select=marbnr,rabatt&limit=9999`, { headers: h }),
   ]);
   const [tGes, tH1, tH2, ausweise] = await Promise.all([resGes.json(), resH1.json(), resH2.json(), auswRes.json()]);
   if (!Array.isArray(tGes)) throw new Error('Tankungen konnten nicht geladen werden');
@@ -10698,8 +10698,8 @@ async function skAusweisLookup() {
   try {
     // Alle Tankungen dieses Ausweises im Monat — egal welcher zahltyp oder Kunde
     const [resTank, resAusw] = await Promise.all([
-      fetch(`${_SBURL}/rest/v1/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&ausweis_nr=eq.${ausweisnr}&select=hidatum,ausweis_nr,hiartbez,kundennr,himenge,hipreis,zahltyp&order=hidatum`, { headers: h }),
-      fetch(`${_SBURL}/rest/v1/ausweise?marbnr=eq.${ausweisnr}&select=marbnr,maident,kundennr&limit=5`, { headers: h })
+      fetch(`${_SBURL}/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&ausweis_nr=eq.${ausweisnr}&select=hidatum,ausweis_nr,hiartbez,kundennr,himenge,hipreis,zahltyp&order=hidatum`, { headers: h }),
+      fetch(`${_SBURL}/ausweise?marbnr=eq.${ausweisnr}&select=marbnr,maident,kundennr&limit=5`, { headers: h })
     ]);
     const tankungen = await resTank.json();
     const ausweise  = await resAusw.json();
@@ -10714,7 +10714,7 @@ async function skAusweisLookup() {
     const kdNrs = [...new Set(tankungen.map(t => t.kundennr).filter(Boolean))];
     const kdMap = {};
     if (kdNrs.length) {
-      const kdRes = await fetch(`${_SBURL}/rest/v1/kunden?kundennr=in.(${kdNrs.join(',')})&select=kundennr,name,kuzart`, { headers: h });
+      const kdRes = await fetch(`${_SBURL}/kunden?kundennr=in.(${kdNrs.join(',')})&select=kundennr,name,kuzart`, { headers: h });
       const kd = await kdRes.json();
       if (Array.isArray(kd)) kd.forEach(k => { kdMap[k.kundennr] = { name: k.name||'—', kuzart: k.kuzart }; });
     }
@@ -10804,9 +10804,9 @@ async function sepaKontrolleLaden() {
 
     // DB: kuzart=1 Kunden, sepa-Tankungen im Zeitraum, Ausweise mit Rabatt
     const [kdRes, tankRes, auswRes] = await Promise.all([
-      fetch(`${_SBURL}/rest/v1/kunden?kuzart=eq.1&select=kundennr,name&limit=9999`, { headers: h }),
-      fetch(`${_SBURL}/rest/v1/tankungen?hidatum=gte.${von}&hidatum=lte.${bis}&zahltyp=eq.sepa&select=kundennr,hipreis,himenge,hiartbez,hidatum,ausweis_nr`, { headers: h }),
-      fetch(`${_SBURL}/rest/v1/ausweise?select=marbnr,rabatt&limit=9999`, { headers: h })
+      fetch(`${_SBURL}/kunden?kuzart=eq.1&select=kundennr,name&limit=9999`, { headers: h }),
+      fetch(`${_SBURL}/tankungen?hidatum=gte.${von}&hidatum=lte.${bis}&zahltyp=eq.sepa&select=kundennr,hipreis,himenge,hiartbez,hidatum,ausweis_nr`, { headers: h }),
+      fetch(`${_SBURL}/ausweise?select=marbnr,rabatt&limit=9999`, { headers: h })
     ]);
     const kunden   = await kdRes.json();
     const tank     = await tankRes.json();
@@ -10936,11 +10936,11 @@ async function sepaBerichtLaden() {
     const h = { 'apikey': _SBKEY, 'Authorization': 'Bearer ' + _BEARER, 'Range': '0-9999' };
 
     const [kdRes, tankRes, auswRes, sepaRes, orteRes] = await Promise.all([
-      fetch(`${_SBURL}/rest/v1/kunden?kuzart=eq.1&select=kundennr,name,ortid&limit=9999`, { headers: h }),
-      fetch(`${_SBURL}/rest/v1/tankungen?periode_von=eq.${von}&periode_bis=eq.${bis}&zahltyp=eq.sepa&select=kundennr,hipreis,himenge,hiartbez,ausweis_nr,rechnungsnr`, { headers: h }),
-      fetch(`${_SBURL}/rest/v1/ausweise?select=marbnr,rabatt&limit=9999`, { headers: h }),
-      fetch(`${_SBURL}/rest/v1/sepa_mandate?select=kundennr,mandatsreferenz,iban&limit=9999`, { headers: h }),
-      fetch(`${_SBURL}/rest/v1/orte?select=ortid,plz,ortname&limit=9999`, { headers: h })
+      fetch(`${_SBURL}/kunden?kuzart=eq.1&select=kundennr,name,ortid&limit=9999`, { headers: h }),
+      fetch(`${_SBURL}/tankungen?periode_von=eq.${von}&periode_bis=eq.${bis}&zahltyp=eq.sepa&select=kundennr,hipreis,himenge,hiartbez,ausweis_nr,rechnungsnr`, { headers: h }),
+      fetch(`${_SBURL}/ausweise?select=marbnr,rabatt&limit=9999`, { headers: h }),
+      fetch(`${_SBURL}/sepa_mandate?select=kundennr,mandatsreferenz,iban&limit=9999`, { headers: h }),
+      fetch(`${_SBURL}/orte?select=ortid,plz,ortname&limit=9999`, { headers: h })
     ]);
     const kunden   = await kdRes.json();
     const tank     = await tankRes.json();
@@ -11158,7 +11158,7 @@ async function skDiffAnalyse() {
 
   try {
     // kuzart=1 Kunden
-    const kdRes = await fetch(`${_SBURL}/rest/v1/kunden?kuzart=eq.1&select=kundennr,name&limit=9999`, { headers: h });
+    const kdRes = await fetch(`${_SBURL}/kunden?kuzart=eq.1&select=kundennr,name&limit=9999`, { headers: h });
     const kunden = await kdRes.json();
     const kdMap = {};
     kunden.forEach(k => { kdMap[k.kundennr] = k.name || String(k.kundennr); });
@@ -11166,7 +11166,7 @@ async function skDiffAnalyse() {
 
     // ALLE Tankungen dieser Kunden im Monat — mit zahltyp, ausweis_nr, datum
     const res = await fetch(
-      `${_SBURL}/rest/v1/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&kundennr=in.(${kdNrs.join(',')})&select=kundennr,himenge,hipreis,hiartbez,zahltyp,hidatum,ausweis_nr&order=kundennr,hidatum`,
+      `${_SBURL}/tankungen?hidatum=gte.${vonStr}&hidatum=lte.${bisStr}&kundennr=in.(${kdNrs.join(',')})&select=kundennr,himenge,hipreis,hiartbez,zahltyp,hidatum,ausweis_nr&order=kundennr,hidatum`,
       { headers: h }
     );
     const tankungen = await res.json();
